@@ -192,6 +192,16 @@ export default function Home() {
           currentChatId = newChatId;
           setChatId(currentChatId);
           const isNewChat = true;
+          // 新聊天创建成功后，直接添加到侧边栏列表顶部，避免刷新动画
+          if ((window as any).addChatItem) {
+            const newChatItem = {
+              id: newChatId,
+              title: chatTitle,
+              date: '今天',
+              preview: messageContent.length > 50 ? messageContent.substring(0, 50) + '...' : messageContent
+            };
+            (window as any).addChatItem(newChatItem);
+          }
         } else {
           console.error('Failed to create new chat in database');
           // 如果创建失败，使用临时ID
@@ -215,7 +225,22 @@ export default function Home() {
         
         // 保存消息到数据库
         if (currentChatId && !currentChatId.startsWith('temp_')) {
-          saveChatToDatabase(currentChatId, updatedMessages).catch(error => {
+          saveChatToDatabase(currentChatId, updatedMessages).then(() => {
+            // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
+            if ((window as any).updateChatItem) {
+              // 获取最后一条非用户消息作为预览
+              const lastAgentMessage = updatedMessages.slice().reverse().find(msg => !msg.isUser);
+              if (lastAgentMessage) {
+                const preview = lastAgentMessage.content.length > 50 ? 
+                  lastAgentMessage.content.substring(0, 50) + '...' : 
+                  lastAgentMessage.content;
+                (window as any).updateChatItem(currentChatId, { 
+                  preview,
+                  date: '今天'
+                });
+              }
+            }
+          }).catch(error => {
             console.error('Error saving chat to database:', error);
           });
         }
@@ -312,7 +337,22 @@ export default function Home() {
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               // 获取当前消息状态
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                  // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
+                  if ((window as any).updateChatItem) {
+                    // 获取最后一条非用户消息作为预览
+                    const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
+                    if (lastAgentMessage) {
+                      const preview = lastAgentMessage.content.length > 50 ? 
+                        lastAgentMessage.content.substring(0, 50) + '...' : 
+                        lastAgentMessage.content;
+                      (window as any).updateChatItem(currentChatId, { 
+                        preview,
+                        date: '今天'
+                      });
+                    }
+                  }
+                }).catch(error => {
                   console.error('Error saving chat to database:', error);
                 });
                 return currentMessages;
@@ -358,7 +398,22 @@ export default function Home() {
             // 保存错误消息到数据库
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                  // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
+                  if ((window as any).updateChatItem) {
+                    // 获取最后一条非用户消息作为预览
+                    const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
+                    if (lastAgentMessage) {
+                      const preview = lastAgentMessage.content.length > 50 ? 
+                        lastAgentMessage.content.substring(0, 50) + '...' : 
+                        lastAgentMessage.content;
+                      (window as any).updateChatItem(currentChatId, { 
+                        preview,
+                        date: '今天'
+                      });
+                    }
+                  }
+                }).catch(error => {
                   console.error('Error saving chat to database:', error);
                 });
                 return currentMessages;
@@ -444,7 +499,22 @@ export default function Home() {
             // 保存错误消息到数据库
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                  // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
+                  if ((window as any).updateChatItem) {
+                    // 获取最后一条非用户消息作为预览
+                    const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
+                    if (lastAgentMessage) {
+                      const preview = lastAgentMessage.content.length > 50 ? 
+                        lastAgentMessage.content.substring(0, 50) + '...' : 
+                        lastAgentMessage.content;
+                      (window as any).updateChatItem(currentChatId, { 
+                        preview,
+                        date: '今天'
+                      });
+                    }
+                  }
+                }).catch(error => {
                   console.error('Error saving chat to database:', error);
                 });
                 return currentMessages;
@@ -566,7 +636,22 @@ export default function Home() {
     // 保存完整的聊天记录到数据库
     if (chatId && !chatId.startsWith('temp_')) {
       setMessages(currentMessages => {
-        saveChatToDatabase(chatId, currentMessages).catch(error => {
+        saveChatToDatabase(chatId, currentMessages).then(() => {
+          // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
+          if ((window as any).updateChatItem) {
+            // 获取最后一条非用户消息作为预览
+            const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
+            if (lastAgentMessage) {
+              const preview = lastAgentMessage.content.length > 50 ? 
+                lastAgentMessage.content.substring(0, 50) + '...' : 
+                lastAgentMessage.content;
+              (window as any).updateChatItem(chatId, { 
+                preview,
+                date: '今天'
+              });
+            }
+          }
+        }).catch(error => {
           console.error('Error saving chat to database:', error);
         });
         return currentMessages;
