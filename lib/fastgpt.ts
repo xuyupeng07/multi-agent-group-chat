@@ -35,8 +35,8 @@ export interface FastGPTAgent {
   shareId?: string;
 }
 
-// 调度中心API密钥
-const DISPATCH_CENTER_API_KEY = 'fastgpt-yo7VV9ZJkKBi22QL8DP4hW02PtNuDd0hUOW7H8F6Nf8Z4BqATYUosS8NUBZhNc';
+// 调度中心API密钥 - 已移至后端，此处仅作注释参考
+// const DISPATCH_CENTER_API_KEY = 'fastgpt-yo7VV9ZJkKBi22QL8DP4hW02PtNuDd0hUOW7H8F6Nf8Z4BqATYUosS8NUBZhNc';
 
 // 调度中心响应类型
 export interface DispatchCenterResponse {
@@ -86,7 +86,7 @@ export async function loadAgentConfigs() {
   }
 };
 
-// 调用调度中心API
+// 调用调度中心API - 现在通过后端代理
 export async function callDispatchCenter(
   chatId: string,
   messages: FastGPTMessage[]
@@ -94,18 +94,15 @@ export async function callDispatchCenter(
   try {
     console.log('Calling Dispatch Center API with chatId:', chatId);
     
-    const response = await fetch('https://cloud.fastgpt.io/api/v1/chat/completions', {
+    const response = await fetch('/api/fastgpt/dispatch', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${DISPATCH_CENTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         chatId,
-        stream: false,
-        detail: false,
         messages,
-      } as FastGPTRequest),
+      }),
     });
 
     if (!response.ok) {
@@ -185,9 +182,10 @@ export function removeMentionFromText(text: string): string {
   return text.trim();
 }
 
-// FastGPT API 调用函数
+// FastGPT API 调用函数 - 现在通过后端代理
 export async function callFastGPT(
-  apiKey: string,
+  agentId: string | undefined,
+  agentName: string | undefined,
   chatId: string,
   messages: FastGPTMessage[],
   onChunk: (chunk: string) => void,
@@ -196,21 +194,21 @@ export async function callFastGPT(
 ) {
   try {
     console.log('Calling FastGPT API with chatId:', chatId);
-    console.log('API Key length:', apiKey.length);
+    console.log('Agent:', agentName || agentId);
     console.log('Messages count:', messages.length);
     
-    const response = await fetch('https://cloud.fastgpt.io/api/v1/chat/completions', {
+    const response = await fetch('/api/fastgpt/chat', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        agentId,
+        agentName,
         chatId,
         stream: true,
-        detail: false,
         messages,
-      } as FastGPTRequest),
+      }),
     });
 
     if (!response.ok) {

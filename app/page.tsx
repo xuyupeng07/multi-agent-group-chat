@@ -160,13 +160,14 @@ export default function Home() {
         console.log('Debug - fastgptMessages:', fastgptMessages);
         console.log('Debug - current agent config:', {
           name: agentConfig.name,
-          apiKeyLength: agentConfig.apiKey.length,
+          id: agentConfig.id,
           color: agentConfig.color
         });
         
-        // 调用FastGPT API
+        // 调用FastGPT API - 现在通过后端代理
         callFastGPT(
-          agentConfig.apiKey,
+          agentConfig.id,
+          agentConfig.name,
           currentChatId,
           fastgptMessages,
           (chunk: string) => {
@@ -193,7 +194,7 @@ export default function Home() {
             console.error("FastGPT API error:", error);
             console.error("Error details:", {
               agentName: agentConfig.name,
-              apiKeyLength: agentConfig.apiKey.length,
+              agentId: agentConfig.id,
               chatId: currentChatId,
               messagesCount: fastgptMessages.length
             });
@@ -351,7 +352,8 @@ export default function Home() {
       // 调用智能体API，使用原始消息历史，不包含前面智能体的输出
       await new Promise<void>((resolve) => {
         callFastGPT(
-          apiKey,
+          agentInfo.id,
+          agentInfo.name,
           chatId,
           originalMessages, // 使用原始消息历史，不是currentMessages
           (chunk: string) => {
