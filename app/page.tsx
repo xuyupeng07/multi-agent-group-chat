@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText, loadAgentConfigs } from "@/lib/fastgpt";
+import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
 import { Message, Agent } from "@/types/chat";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -71,7 +71,7 @@ export default function Home() {
     },
   ];
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (inputValue.trim() && !isComposing && !isLoading) {
       // 提取@的智能体
       const mentionedAgent = extractMentionedAgent(inputValue);
@@ -81,32 +81,6 @@ export default function Home() {
       // 如果没有@智能体或者移除@后内容为空，使用原始输入
       if (!mentionedAgent && !messageContent.trim()) {
         messageContent = inputValue.trim();
-      }
-      
-      // 如果没有@智能体，默认使用旅行管家
-      const agentName = mentionedAgent || "旅行管家";
-      console.log('Debug - mentionedAgent:', mentionedAgent);
-      console.log('Debug - agentName:', agentName);
-      console.log('Debug - inputValue:', inputValue);
-      console.log('Debug - messageContent:', messageContent);
-      console.log('Debug - available agents:', Object.keys(AGENT_CONFIGS));
-      
-      const agentConfig = AGENT_CONFIGS[agentName as keyof typeof AGENT_CONFIGS];
-      
-      if (!agentConfig) {
-        console.error("未找到智能体配置:", agentName);
-        console.error("可用的智能体配置:", Object.keys(AGENT_CONFIGS));
-        // 显示错误消息给用户
-        const errorMessage: Message = {
-          id: Date.now().toString(),
-          agentName: "系统",
-          agentColor: "bg-red-500",
-          content: `错误：未找到智能体配置 "${agentName}」。可用的智能体：${Object.keys(AGENT_CONFIGS).join('、')}`,
-          timestamp: new Date().toISOString(),
-          isUser: false,
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        return;
       }
       
       // 生成或使用现有的chatId（使用用户第一句的时间戳）
@@ -126,21 +100,9 @@ export default function Home() {
         isUser: true,
       };
       
-      // 创建一个助手消息，初始显示"思考中......"，用于流式更新
-      const assistantMessageId = (Date.now() + 1).toString();
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        agentName: agentConfig.name,
-        agentColor: agentConfig.color,
-        content: "思考中......",
-        timestamp: new Date().toISOString(),
-        isUser: false,
-      };
-      
-      setMessages([...messages, userMessage, assistantMessage]);
+      setMessages(prev => [...prev, userMessage]);
       setInputValue("");
       setIsLoading(true);
-      setCurrentStreamingMessageId(assistantMessageId);
       
       // 准备发送给FastGPT的消息历史，包含所有对话内容和智能体名称
       const fastgptMessages: FastGPTMessage[] = [
@@ -156,76 +118,298 @@ export default function Home() {
         }
       ];
       
-      console.log('Debug - fastgptMessages:', fastgptMessages);
-      console.log('Debug - current agent config:', {
-        name: agentConfig.name,
-        apiKeyLength: agentConfig.apiKey.length,
-        color: agentConfig.color
-      });
-      
-      // 调用FastGPT API
-      callFastGPT(
-        agentConfig.apiKey,
-        currentChatId,
-        fastgptMessages,
-        (chunk: string) => {
-          // 流式更新消息内容，第一个chunk替换掉"思考中......"
-          setMessages(prevMessages => 
-            prevMessages.map(msg => 
-              msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
-                : msg
-            )
-          );
-        },
-        () => {
-          // 流式完成
+      // 如果有@智能体，直接调用该智能体
+      if (mentionedAgent) {
+        console.log('Debug - mentionedAgent:', mentionedAgent);
+        console.log('Debug - inputValue:', inputValue);
+        console.log('Debug - messageContent:', messageContent);
+        console.log('Debug - available agents:', Object.keys(AGENT_CONFIGS));
+        
+        const agentConfig = AGENT_CONFIGS[mentionedAgent as keyof typeof AGENT_CONFIGS];
+        
+        if (!agentConfig) {
+          console.error("未找到智能体配置:", mentionedAgent);
+          console.error("可用的智能体配置:", Object.keys(AGENT_CONFIGS));
+          // 显示错误消息给用户
+          const errorMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            agentName: "系统",
+            agentColor: "bg-red-500",
+            content: `错误：未找到智能体配置 "${mentionedAgent}」。可用的智能体：${Object.keys(AGENT_CONFIGS).join('、')}`,
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          };
+          setMessages(prev => [...prev, errorMessage]);
           setIsLoading(false);
-          setCurrentStreamingMessageId(null);
-          // AI回复完成后自动聚焦输入框
-          setTimeout(() => {
-            chatInputRef.current?.focus();
-          }, 100);
-        },
-        (error: Error) => {
-          // 处理错误
-          console.error("FastGPT API error:", error);
-          console.error("Error details:", {
-            agentName: agentConfig.name,
-            apiKeyLength: agentConfig.apiKey.length,
-            chatId: currentChatId,
-            messagesCount: fastgptMessages.length
-          });
+          return;
+        }
+        
+        // 创建一个助手消息，初始显示"思考中......"，用于流式更新
+        const assistantMessageId = (Date.now() + 1).toString();
+        const assistantMessage: Message = {
+          id: assistantMessageId,
+          agentName: agentConfig.name,
+          agentColor: agentConfig.color,
+          content: "思考中......",
+          timestamp: new Date().toISOString(),
+          isUser: false,
+        };
+        
+        setMessages(prev => [...prev, assistantMessage]);
+        setCurrentStreamingMessageId(assistantMessageId);
+        
+        console.log('Debug - fastgptMessages:', fastgptMessages);
+        console.log('Debug - current agent config:', {
+          name: agentConfig.name,
+          apiKeyLength: agentConfig.apiKey.length,
+          color: agentConfig.color
+        });
+        
+        // 调用FastGPT API
+        callFastGPT(
+          agentConfig.apiKey,
+          currentChatId,
+          fastgptMessages,
+          (chunk: string) => {
+            // 流式更新消息内容，第一个chunk替换掉"思考中......"
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
+                  : msg
+              )
+            );
+          },
+          () => {
+            // 流式完成
+            setIsLoading(false);
+            setCurrentStreamingMessageId(null);
+            // AI回复完成后自动聚焦输入框
+            setTimeout(() => {
+              chatInputRef.current?.focus();
+            }, 100);
+          },
+          (error: Error) => {
+            // 处理错误
+            console.error("FastGPT API error:", error);
+            console.error("Error details:", {
+              agentName: agentConfig.name,
+              apiKeyLength: agentConfig.apiKey.length,
+              chatId: currentChatId,
+              messagesCount: fastgptMessages.length
+            });
+            
+            let errorMessage = "[请求出错，请稍后再试]";
+            if (error.message.includes('401')) {
+              errorMessage = "[API密钥无效，请联系管理员]";
+            } else if (error.message.includes('403')) {
+              errorMessage = "[API访问被拒绝，请联系管理员]";
+            } else if (error.message.includes('404')) {
+              errorMessage = "[API服务未找到，请联系管理员]";
+            } else if (error.message.includes('429')) {
+              errorMessage = "[请求过于频繁，请稍后再试]";
+            } else if (error.message.includes('500')) {
+              errorMessage = "[服务器内部错误，请稍后再试]";
+            }
+            
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, content: errorMessage }
+                  : msg
+              )
+            );
+            setIsLoading(false);
+            setCurrentStreamingMessageId(null);
+            // 错误处理后也聚焦输入框，方便用户重新输入
+            setTimeout(() => {
+              chatInputRef.current?.focus();
+            }, 100);
+          }
+        );
+      } else {
+        // 没有艾特智能体，先调用调度中心
+        let dispatchMessageId: string | null = null;
+        
+        try {
+          console.log('No agent mentioned, calling dispatch center...');
           
-          let errorMessage = "[请求出错，请稍后再试]";
-          if (error.message.includes('401')) {
-            errorMessage = "[API密钥无效，请联系管理员]";
-          } else if (error.message.includes('403')) {
-            errorMessage = "[API访问被拒绝，请联系管理员]";
-          } else if (error.message.includes('404')) {
-            errorMessage = "[API服务未找到，请联系管理员]";
-          } else if (error.message.includes('429')) {
-            errorMessage = "[请求过于频繁，请稍后再试]";
-          } else if (error.message.includes('500')) {
-            errorMessage = "[服务器内部错误，请稍后再试]";
+          // 创建调度中心思考中的消息
+          dispatchMessageId = (Date.now() + 1).toString();
+          const dispatchMessage: Message = {
+            id: dispatchMessageId,
+            agentName: "调度中心",
+            agentColor: "bg-gray-500",
+            content: "正在分析任务并分配智能体...",
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          };
+          
+          setMessages(prev => [...prev, dispatchMessage]);
+          
+          // 调用调度中心API
+          const dispatchResponse: DispatchCenterResponse = await callDispatchCenter(currentChatId, fastgptMessages);
+          
+          // 解析调度中心返回的智能体列表
+          let agentList = [];
+          try {
+            agentList = JSON.parse(dispatchResponse.choices[0].message.content);
+            console.log('Parsed agent list from dispatch center:', agentList);
+          } catch (parseError) {
+            console.error('Failed to parse agent list from dispatch center:', parseError);
+            throw new Error('调度中心返回的智能体列表格式错误');
           }
           
+          // 如果调度中心返回空数组，使用旅行管家
+          if (!agentList || agentList.length === 0) {
+            console.log('Dispatch center returned empty list, using travel butler');
+            agentList = [{ 
+              id: '', // 空ID，将通过名称匹配
+              name: '旅行管家' 
+            }];
+          }
+          
+          // 更新调度中心消息，显示选择的智能体
+          const agentNames = agentList.map((agent: any) => agent.name).join('、');
           setMessages(prevMessages => 
             prevMessages.map(msg => 
-              msg.id === assistantMessageId 
-                ? { ...msg, content: errorMessage }
+              msg.id === dispatchMessageId 
+                ? { ...msg, content: `已选择智能体：${agentNames}` }
                 : msg
             )
           );
+          
+          // 按顺序调用智能体
+          await callAgentsSequentially(agentList, currentChatId, fastgptMessages);
+          
+        } catch (error) {
+          console.error('Error in dispatch center flow:', error);
+          
+          // 更新调度中心消息为错误信息
+          if (dispatchMessageId) {
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === dispatchMessageId 
+                  ? { ...msg, content: `[调度中心错误：${error instanceof Error ? error.message : '未知错误'}]` }
+                  : msg
+              )
+            );
+          }
+          
           setIsLoading(false);
-          setCurrentStreamingMessageId(null);
-          // 错误处理后也聚焦输入框，方便用户重新输入
-          setTimeout(() => {
-            chatInputRef.current?.focus();
-          }, 100);
         }
-      );
+      }
     }
+  };
+  
+  // 按顺序调用智能体的函数
+  const callAgentsSequentially = async (
+    agentList: Array<{ id: string; name: string }>, 
+    chatId: string, 
+    initialMessages: FastGPTMessage[]
+  ) => {
+    // 保存原始消息历史，每个智能体都使用相同的初始消息
+    const originalMessages = [...initialMessages];
+    
+    for (let i = 0; i < agentList.length; i++) {
+      const agentInfo = agentList[i];
+      console.log(`Calling agent ${i + 1}/${agentList.length}:`, agentInfo);
+      
+      // 获取智能体API密钥
+      const apiKey = await getAgentApiKey(agentInfo.id, agentInfo.name);
+      
+      if (!apiKey) {
+        console.error(`Failed to get API key for agent:`, agentInfo);
+        
+        // 创建错误消息
+        const errorMessage: Message = {
+          id: (Date.now() + i + 2).toString(),
+          agentName: "系统",
+          agentColor: "bg-red-500",
+          content: `错误：无法获取智能体 "${agentInfo.name}" 的API密钥，请检查智能体配置`,
+          timestamp: new Date().toISOString(),
+          isUser: false,
+        };
+        
+        setMessages(prev => [...prev, errorMessage]);
+        continue;
+      }
+      
+      // 创建智能体消息，初始显示"思考中......"
+      const agentMessageId = (Date.now() + i + 2).toString();
+      const agentMessage: Message = {
+        id: agentMessageId,
+        agentName: agentInfo.name,
+        agentColor: "bg-blue-500", // 默认颜色，可以根据需要从数据库获取
+        content: "思考中......",
+        timestamp: new Date().toISOString(),
+        isUser: false,
+      };
+      
+      setMessages(prev => [...prev, agentMessage]);
+      setCurrentStreamingMessageId(agentMessageId);
+      
+      // 调用智能体API，使用原始消息历史，不包含前面智能体的输出
+      await new Promise<void>((resolve) => {
+        callFastGPT(
+          apiKey,
+          chatId,
+          originalMessages, // 使用原始消息历史，不是currentMessages
+          (chunk: string) => {
+            // 流式更新消息内容，第一个chunk替换掉"思考中......"
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === agentMessageId 
+                  ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
+                  : msg
+              )
+            );
+          },
+          () => {
+            // 流式完成，但不将智能体回复添加到消息历史中
+            // 这样下一个智能体不会看到当前智能体的输出
+            resolve();
+          },
+          (error: Error) => {
+            // 处理错误
+            console.error(`Error calling agent ${agentInfo.name}:`, error);
+            
+            let errorMessage = "[请求出错，请稍后再试]";
+            if (error.message.includes('401')) {
+              errorMessage = "[API密钥无效，请联系管理员]";
+            } else if (error.message.includes('403')) {
+              errorMessage = "[API访问被拒绝，请联系管理员]";
+            } else if (error.message.includes('404')) {
+              errorMessage = "[API服务未找到，请联系管理员]";
+            } else if (error.message.includes('429')) {
+              errorMessage = "[请求过于频繁，请稍后再试]";
+            } else if (error.message.includes('500')) {
+              errorMessage = "[服务器内部错误，请稍后再试]";
+            }
+            
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.id === agentMessageId 
+                  ? { ...msg, content: errorMessage }
+                  : msg
+              )
+            );
+            
+            // 即使出错也要继续，避免阻塞后续智能体
+            resolve();
+          }
+        );
+      });
+    }
+    
+    // 所有智能体调用完成
+    setIsLoading(false);
+    setCurrentStreamingMessageId(null);
+    
+    // 所有AI回复完成后自动聚焦输入框
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 100);
   };
 
   // 新建对话

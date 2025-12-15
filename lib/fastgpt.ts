@@ -35,8 +35,30 @@ export interface FastGPTAgent {
   shareId?: string;
 }
 
+// 调度中心API密钥
+const DISPATCH_CENTER_API_KEY = 'fastgpt-yo7VV9ZJkKBi22QL8DP4hW02PtNuDd0hUOW7H8F6Nf8Z4BqATYUosS8NUBZhNc';
+
+// 调度中心响应类型
+export interface DispatchCenterResponse {
+  id: string;
+  model: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  choices: Array<{
+    message: {
+      role: string;
+      content: string;
+    };
+    finish_reason: string;
+    index: number;
+  }>;
+}
+
 // 智能体配置 - 从数据库获取
-export let AGENT_CONFIGS: Record<string, { apiKey: string; name: string; color: string }> = {
+export let AGENT_CONFIGS: Record<string, { apiKey: string; name: string; color: string; id?: string }> = {
   // 默认配置，当数据库加载失败时使用（空配置）
 };
 
@@ -50,7 +72,8 @@ export async function loadAgentConfigs() {
         configs[agent.name] = {
           apiKey: agent.apiKey,
           name: agent.name,
-          color: agent.color
+          color: agent.color,
+          id: agent.id
         };
         return configs;
       }, {});
@@ -62,6 +85,79 @@ export async function loadAgentConfigs() {
     console.error('Failed to load agent configs from database, using default configs:', error);
   }
 };
+
+// 调用调度中心API
+export async function callDispatchCenter(
+  chatId: string,
+  messages: FastGPTMessage[]
+): Promise<DispatchCenterResponse> {
+  try {
+    console.log('Calling Dispatch Center API with chatId:', chatId);
+    
+    const response = await fetch('https://cloud.fastgpt.io/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${DISPATCH_CENTER_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        stream: false,
+        detail: false,
+        messages,
+      } as FastGPTRequest),
+    });
+
+    if (!response.ok) {
+      console.error('Dispatch Center API error response:', response.status, response.statusText);
+      throw new Error(`Dispatch Center API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data: DispatchCenterResponse = await response.json();
+    console.log('Dispatch Center API response received:', data);
+    return data;
+  } catch (error) {
+    console.error('Failed to call Dispatch Center API:', error);
+    throw error;
+  }
+}
+
+// 根据ID或名称获取智能体API密钥
+export async function getAgentApiKey(agentId?: string, agentName?: string): Promise<string | null> {
+  try {
+    // 特殊处理：当ID为空且名称为旅行管家时，返回旅行管家的API密钥
+    if ((!agentId || agentId === '') && agentName === '旅行管家') {
+      console.log(`Using travel butler API key`);
+      return 'fastgpt-lAf0Gg6mtMaApu0gsA0vzK6nWEa8eD5gPMLVD1CdeD0ysIEtWLjBsPt';
+    }
+    
+    // 确保最新的智能体配置已加载
+    await loadAgentConfigs();
+    
+    // 优先通过ID匹配
+    if (agentId) {
+      for (const agentName in AGENT_CONFIGS) {
+        const config = AGENT_CONFIGS[agentName];
+        if (config.id === agentId) {
+          console.log(`Found agent by ID: ${agentId}, name: ${agentName}`);
+          return config.apiKey;
+        }
+      }
+    }
+    
+    // 如果ID匹配失败，尝试通过名称匹配
+    if (agentName && AGENT_CONFIGS[agentName]) {
+      console.log(`Found agent by name: ${agentName}`);
+      return AGENT_CONFIGS[agentName].apiKey;
+    }
+    
+    console.log(`Agent not found. ID: ${agentId}, Name: ${agentName}`);
+    return null;
+  } catch (error) {
+    console.error('Error getting agent API key:', error);
+    return null;
+  }
+}
 
 // 从文本中提取@的智能体
 export function extractMentionedAgent(text: string): string | null {
