@@ -16,6 +16,7 @@ interface DualSidebarProps {
   agents: Agent[];
   onNewChat: () => void;
   onChatSelect?: (chatId: string) => void;
+  onAgentSelect: (agent: Agent) => void;
 }
 
 // 模拟聊天历史数据
@@ -46,7 +47,7 @@ const mockChatHistory: ChatHistoryItem[] = [
   },
 ];
 
-export function DualSidebar({ agents, onNewChat, onChatSelect }: DualSidebarProps) {
+export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect }: DualSidebarProps) {
   const [activeView, setActiveView] = useState<'chats' | 'agents'>('chats');
   
   const handleChatSelect = (chatId: string) => {
@@ -67,6 +68,7 @@ export function DualSidebar({ agents, onNewChat, onChatSelect }: DualSidebarProp
         agents={agents}
         chatHistory={mockChatHistory}
         onChatSelect={handleChatSelect}
+        onAgentSelect={onAgentSelect}
       />
     </aside>
   );

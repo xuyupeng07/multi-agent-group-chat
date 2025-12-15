@@ -86,6 +86,9 @@ export function Sidebar({ agents, onNewChat }: SidebarProps) {
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
                     {agent.role}
                   </p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 truncate">
+                    {agent.introduction || '暂无介绍'}
+                  </p>
                 </div>
               </button>
             ))}

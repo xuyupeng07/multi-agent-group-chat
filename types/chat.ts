@@ -11,11 +11,13 @@ export interface Agent {
   id: string;
   name: string;
   role: string;
+  introduction?: string;
   status: "online" | "busy" | "offline";
   color: string;
   avatar?: string;
   apiKey?: string;
   shareId?: string;
+  baseUrl?: string;
 }
 
 export interface ChatState {

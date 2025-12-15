@@ -7,7 +7,7 @@ export async function GET() {
     await connectMongoDB();
     
     // 获取所有智能体
-    const agents = await Agent.find({}, 'name role apiKey color');
+    const agents = await Agent.find({}, 'name role introduction apiKey color status baseUrl');
     
     // 返回智能体数据
     return NextResponse.json(agents);

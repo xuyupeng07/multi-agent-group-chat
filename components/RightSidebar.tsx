@@ -18,6 +18,7 @@ interface RightSidebarProps {
   agents: Agent[];
   chatHistory: ChatHistoryItem[];
   onChatSelect: (chatId: string) => void;
+  onAgentSelect: (agent: Agent) => void;
 }
 
 interface ChatHistoryItem {
@@ -27,7 +28,7 @@ interface ChatHistoryItem {
   preview: string;
 }
 
-export function RightSidebar({ activeView, agents, chatHistory, onChatSelect }: RightSidebarProps) {
+export function RightSidebar({ activeView, agents, chatHistory, onChatSelect, onAgentSelect }: RightSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   
   // 过滤聊天历史
@@ -39,7 +40,8 @@ export function RightSidebar({ activeView, agents, chatHistory, onChatSelect }: 
   // 过滤智能体
   const filteredAgents = agents.filter(agent => 
     agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.role.toLowerCase().includes(searchQuery.toLowerCase())
+    agent.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (agent.introduction && agent.introduction.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
   return (
@@ -109,6 +111,7 @@ export function RightSidebar({ activeView, agents, chatHistory, onChatSelect }: 
               filteredAgents.map((agent) => (
                 <button
                   key={agent.id}
+                  onClick={() => onAgentSelect(agent)}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:hover:bg-slate-800"
                 >
                   <div className="relative">
@@ -126,6 +129,9 @@ export function RightSidebar({ activeView, agents, chatHistory, onChatSelect }: 
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                       {agent.role}
+                    </p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                      {agent.introduction || '暂无介绍'}
                     </p>
                   </div>
                 </button>

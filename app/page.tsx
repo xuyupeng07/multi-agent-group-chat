@@ -7,6 +7,7 @@ import { DualSidebar } from "@/components/DualSidebar";
 import { ChatHeader } from "@/components/ChatHeader";
 import { MessageList } from "@/components/MessageList";
 import { ChatInput } from "@/components/ChatInput";
+import { AgentConfigSidebar } from "@/components/AgentConfigSidebar";
 
 export default function Home() {
   // Static initial data to prevent hydration mismatch
@@ -19,6 +20,9 @@ export default function Home() {
   const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [isConfigSidebarOpen, setIsConfigSidebarOpen] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<{
     focus: () => void;
@@ -38,38 +42,38 @@ export default function Home() {
   // Load agent configs from database on mount
   useEffect(() => {
     loadAgentConfigs();
+    loadAgentsFromDatabase();
   }, []);
 
-  const agents: Agent[] = [
-    { 
-      id: "0", 
-      name: "旅行管家", 
-      role: "Travel Butler", 
-      status: "online", 
-      color: "bg-orange-500"
-    },
-    { 
-      id: "1", 
-      name: "交通助手", 
-      role: "Traffic Assistant", 
-      status: "online", 
-      color: "bg-blue-500"
-    },
-    { 
-      id: "2", 
-      name: "酒店管家", 
-      role: "Hotel Butler", 
-      status: "online", 
-      color: "bg-green-500"
-    },
-    { 
-      id: "3", 
-      name: "美食顾问", 
-      role: "Food Advisor", 
-      status: "online", 
-      color: "bg-purple-500"
-    },
-  ];
+  // 从数据库加载智能体数据
+  const loadAgentsFromDatabase = async () => {
+    try {
+      const response = await fetch('/api/agents');
+      if (response.ok) {
+        const agentsData = await response.json();
+        // 转换数据库中的智能体数据为前端需要的格式
+        const formattedAgents: Agent[] = agentsData.map((agent: any) => ({
+          id: agent._id.toString(), // 使用MongoDB的_id
+          name: agent.name,
+          role: agent.role,
+          introduction: agent.introduction || '',
+          status: agent.status,
+          color: agent.color,
+          apiKey: agent.apiKey,
+          baseUrl: agent.baseUrl
+        }));
+        // 更新智能体状态
+        setAgents(formattedAgents);
+        console.log('Loaded agents from database:', formattedAgents);
+      } else {
+        console.error('Failed to load agents from database');
+      }
+    } catch (error) {
+      console.error('Error loading agents from database:', error);
+    }
+  };
+
+
 
   const handleSend = async () => {
     if (inputValue.trim() && !isComposing && !isLoading) {
@@ -413,6 +417,32 @@ export default function Home() {
     console.log("Selected chat:", chatId);
   };
 
+  // 处理智能体选择
+  const handleAgentSelect = (agent: Agent) => {
+    setSelectedAgent(agent);
+    setIsConfigSidebarOpen(true);
+  };
+
+  // 处理智能体配置保存
+  const handleAgentConfigSave = (updatedAgent: Agent) => {
+    // 更新智能体列表中的对应智能体
+    setAgents(prevAgents => 
+      prevAgents.map(agent => 
+        agent.id === updatedAgent.id ? updatedAgent : agent
+      )
+    );
+    
+    console.log("保存智能体配置:", updatedAgent);
+    setIsConfigSidebarOpen(false);
+    setSelectedAgent(null);
+  };
+
+  // 关闭配置侧边栏
+  const handleCloseConfigSidebar = () => {
+    setIsConfigSidebarOpen(false);
+    setSelectedAgent(null);
+  };
+
   // 新建对话
   const handleNewChat = () => {
     setMessages([]);
@@ -493,7 +523,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
       <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
-        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} />
+        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} />
         
         <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
           <ChatHeader agents={agents} />
@@ -515,6 +545,14 @@ export default function Home() {
           />
         </div>
       </div>
+      
+      {/* 智能体配置侧边栏 */}
+      <AgentConfigSidebar
+        isOpen={isConfigSidebarOpen}
+        agent={selectedAgent}
+        onClose={handleCloseConfigSidebar}
+        onSave={handleAgentConfigSave}
+      />
     </div>
   );
 }

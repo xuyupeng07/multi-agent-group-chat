@@ -1,6 +1,11 @@
 import mongoose from 'mongoose';
 
-// 定义智能体模式
+// 删除已存在的模型
+if (mongoose.models.Agent) {
+  delete mongoose.models.Agent;
+}
+
+// 重新定义智能体模式
 const agentSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -11,6 +16,10 @@ const agentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  introduction: {
+    type: String,
+    default: ''
+  },
   apiKey: {
     type: String,
     required: true
@@ -19,6 +28,15 @@ const agentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  status: {
+    type: String,
+    enum: ['online', 'busy', 'offline'],
+    default: 'offline'
+  },
+  baseUrl: {
+    type: String,
+    default: 'https://cloud.fastgpt.io/'
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -26,7 +44,7 @@ const agentSchema = new mongoose.Schema({
 });
 
 // 创建智能体模型
-const Agent = mongoose.models.Agent || mongoose.model('Agent', agentSchema);
+const Agent = mongoose.model('Agent', agentSchema);
 
 // 连接MongoDB数据库
 async function connectMongoDB() {
