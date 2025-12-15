@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
 import { Message, Agent } from "@/types/chat";
-import { Sidebar } from "@/components/Sidebar";
+import { DualSidebar } from "@/components/DualSidebar";
 import { ChatHeader } from "@/components/ChatHeader";
 import { MessageList } from "@/components/MessageList";
 import { ChatInput } from "@/components/ChatInput";
@@ -407,6 +407,12 @@ export default function Home() {
     }, 100);
   };
 
+  // 处理聊天选择
+  const handleChatSelect = (chatId: string) => {
+    // 这里可以根据chatId加载对应的聊天记录
+    console.log("Selected chat:", chatId);
+  };
+
   // 新建对话
   const handleNewChat = () => {
     setMessages([]);
@@ -487,7 +493,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
       <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
-        <Sidebar agents={agents} onNewChat={handleNewChat} />
+        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} />
         
         <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
           <ChatHeader agents={agents} />
