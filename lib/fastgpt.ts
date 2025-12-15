@@ -37,6 +37,11 @@ export interface FastGPTAgent {
 
 // 智能体配置
 export const AGENT_CONFIGS = {
+  "旅行管家": {
+    apiKey: process.env.NEXT_PUBLIC_FASTGPT_TRAVEL_KEY || "",
+    name: "旅行管家",
+    color: "bg-orange-500"
+  },
   "交通助手": {
     apiKey: process.env.NEXT_PUBLIC_FASTGPT_TRAFFIC_KEY || "",
     name: "交通助手",

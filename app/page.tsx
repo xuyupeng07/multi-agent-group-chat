@@ -65,6 +65,13 @@ export default function Home() {
 
   const agents: Agent[] = [
     { 
+      id: "0", 
+      name: "旅行管家", 
+      role: "Travel Butler", 
+      status: "online", 
+      color: "bg-orange-500"
+    },
+    { 
       id: "1", 
       name: "交通助手", 
       role: "Traffic Assistant", 
@@ -94,8 +101,8 @@ export default function Home() {
       // 移除@部分，获取实际消息内容
       const messageContent = removeMentionFromText(inputValue);
       
-      // 如果没有@智能体，默认使用酒店管家
-      const agentName = mentionedAgent || "酒店管家";
+      // 如果没有@智能体，默认使用旅行管家
+      const agentName = mentionedAgent || "旅行管家";
       const agentConfig = AGENT_CONFIGS[agentName as keyof typeof AGENT_CONFIGS];
       
       if (!agentConfig) {
@@ -421,10 +428,11 @@ export default function Home() {
                       输入消息，使用@智能体名称来指定智能体
                     </p>
                     <div className="flex flex-col gap-2 text-xs text-zinc-400">
+                      <div>@旅行管家 - 全面旅行相关咨询</div>
                       <div>@交通助手 - 交通出行相关咨询</div>
                       <div>@酒店管家 - 酒店住宿相关咨询</div>
                       <div>@美食顾问 - 美食餐饮相关咨询</div>
-                      <div className="mt-2 text-zinc-500">不指定智能体时，默认使用@酒店管家</div>
+                      <div className="mt-2 text-zinc-500">不指定智能体时，默认使用@旅行管家</div>
                     </div>
                   </div>
                 </div>
