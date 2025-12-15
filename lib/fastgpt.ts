@@ -179,9 +179,10 @@ export function extractMentionedAgent(text: string): string | null {
   return null;
 }
 
-// 从文本中移除@部分
+// 从文本中移除@部分（保留@智能体，仅移除多余的@）
 export function removeMentionFromText(text: string): string {
-  return text.replace(/@\S+/g, '').trim();
+  // 不再移除@部分，直接返回原文本
+  return text.trim();
 }
 
 // FastGPT API 调用函数

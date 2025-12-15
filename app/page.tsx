@@ -75,13 +75,8 @@ export default function Home() {
     if (inputValue.trim() && !isComposing && !isLoading) {
       // 提取@的智能体
       const mentionedAgent = extractMentionedAgent(inputValue);
-      // 移除@部分，获取实际消息内容
-      let messageContent = removeMentionFromText(inputValue);
-      
-      // 如果没有@智能体或者移除@后内容为空，使用原始输入
-      if (!mentionedAgent && !messageContent.trim()) {
-        messageContent = inputValue.trim();
-      }
+      // 保留原始输入，不移除@部分
+      let messageContent = inputValue.trim();
       
       // 生成或使用现有的chatId（使用用户第一句的时间戳）
       let currentChatId = chatId;
@@ -95,7 +90,7 @@ export default function Home() {
         id: Date.now().toString(),
         agentName: "Me",
         agentColor: "bg-indigo-600",
-        content: messageContent, // 使用处理后的消息内容
+        content: messageContent, // 使用包含@智能体的原始消息内容
         timestamp: new Date().toISOString(),
         isUser: true,
       };
@@ -114,7 +109,7 @@ export default function Home() {
         // 添加当前用户消息
         {
           role: 'user' as const,
-          content: messageContent
+          content: messageContent // 使用包含@智能体的原始消息内容
         }
       ];
       
@@ -274,7 +269,7 @@ export default function Home() {
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.id === dispatchMessageId 
-                ? { ...msg, content: `已选择智能体：${agentNames}` }
+                ? { ...msg, content: `${agentNames}正在为您分析需求...` }
                 : msg
             )
           );

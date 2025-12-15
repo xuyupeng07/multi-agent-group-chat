@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Message } from "@/types/chat";
+import React from "react";
 
 interface MessageItemProps {
   message: Message;
@@ -18,6 +19,40 @@ const formatTime = (isoString: string) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+// 解析消息内容，将@智能体部分转换为带有特殊样式的元素
+const parseMessageContent = (content: string, isUserMessage: boolean) => {
+  // 使用正则表达式匹配@智能体部分
+  const mentionRegex = /@(\S+)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = mentionRegex.exec(content)) !== null) {
+    // 添加@符号之前的部分
+    if (match.index > lastIndex) {
+      parts.push(content.substring(lastIndex, match.index));
+    }
+    
+    // 添加@智能体部分，带有特殊样式
+    // 用户消息使用黄色，AI消息使用蓝色
+    const mentionColor = isUserMessage ? "text-yellow-300" : "text-blue-500";
+    parts.push(
+      <span key={match.index} className={`font-bold ${mentionColor}`}>
+        {match[0]}
+      </span>
+    );
+    
+    lastIndex = mentionRegex.lastIndex;
+  }
+  
+  // 添加最后一部分
+  if (lastIndex < content.length) {
+    parts.push(content.substring(lastIndex));
+  }
+  
+  return parts;
 };
 
 export function MessageItem({ message }: MessageItemProps) {
@@ -48,7 +83,7 @@ export function MessageItem({ message }: MessageItemProps) {
             : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-sm border border-zinc-200 dark:border-zinc-700"
           }
         `}>
-          {message.content}
+          {parseMessageContent(message.content, message.isUser)}
         </div>
       </div>
     </div>
