@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Search, MessageSquare, Bot } from "lucide-react";
 import { Agent } from "@/types/chat";
@@ -17,6 +16,7 @@ interface RightSidebarProps {
   activeView: 'chats' | 'agents';
   agents: Agent[];
   chatHistory: ChatHistoryItem[];
+  loading?: boolean;
   onChatSelect: (chatId: string) => void;
   onAgentSelect: (agent: Agent) => void;
 }
@@ -28,7 +28,7 @@ interface ChatHistoryItem {
   preview: string;
 }
 
-export function RightSidebar({ activeView, agents, chatHistory, onChatSelect, onAgentSelect }: RightSidebarProps) {
+export function RightSidebar({ activeView, agents, chatHistory, loading = false, onChatSelect, onAgentSelect }: RightSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   
   // 过滤聊天历史
@@ -77,7 +77,11 @@ export function RightSidebar({ activeView, agents, chatHistory, onChatSelect, on
         {activeView === 'chats' ? (
           // 聊天历史列表
           <div className="space-y-2">
-            {filteredChatHistory.length > 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            ) : filteredChatHistory.length > 0 ? (
               filteredChatHistory.map((chat) => (
                 <button
                   key={chat.id}

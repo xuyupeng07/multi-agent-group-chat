@@ -15,7 +15,15 @@ export async function PUT(request: Request) {
     await connectMongoDB();
     
     // 准备更新数据
-    const updateData: any = {};
+    const updateData: {
+      name?: string;
+      role?: string;
+      introduction?: string;
+      apiKey?: string;
+      status?: string;
+      color?: string;
+      baseUrl?: string;
+    } = {};
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) updateData.role = role;
     if (introduction !== undefined) updateData.introduction = introduction;

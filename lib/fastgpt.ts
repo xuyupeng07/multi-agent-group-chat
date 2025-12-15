@@ -65,15 +65,35 @@ export let AGENT_CONFIGS: Record<string, { apiKey: string; name: string; color: 
 // 从数据库加载智能体配置
 export async function loadAgentConfigs() {
   try {
-    const response = await fetch('/api/agents');
+    // 在服务器端和客户端使用不同的URL
+    const isServer = typeof window === 'undefined';
+    const agentsUrl = isServer ? 
+      `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/agents` : 
+      '/api/agents';
+    
+    const response = await fetch(agentsUrl);
     if (response.ok) {
       const agents = await response.json();
-      AGENT_CONFIGS = agents.reduce((configs: Record<string, any>, agent: any) => {
+      AGENT_CONFIGS = agents.reduce((configs: Record<string, {
+        apiKey: string;
+        name: string;
+        color: string;
+        id: string;
+      }>, agent: {
+        _id: string;
+        name: string;
+        role: string;
+        introduction: string;
+        apiKey: string;
+        color: string;
+        status: string;
+        baseUrl: string;
+      }) => {
         configs[agent.name] = {
           apiKey: agent.apiKey,
           name: agent.name,
           color: agent.color,
-          id: agent.id
+          id: agent._id.toString() // 使用MongoDB的_id
         };
         return configs;
       }, {});
@@ -131,12 +151,15 @@ export async function getAgentApiKey(agentId?: string, agentName?: string): Prom
     // 确保最新的智能体配置已加载
     await loadAgentConfigs();
     
+    console.log(`Looking for agent with ID: ${agentId}, Name: ${agentName}`);
+    console.log(`Available agents:`, Object.keys(AGENT_CONFIGS));
+    
     // 优先通过ID匹配
     if (agentId) {
       for (const agentName in AGENT_CONFIGS) {
         const config = AGENT_CONFIGS[agentName];
         if (config.id === agentId) {
-          console.log(`Found agent by ID: ${agentId}, name: ${agentName}`);
+          console.log(`Found agent by ID: ${agentId}, name: ${agentName}, API key: ${config.apiKey ? 'exists' : 'missing'}`);
           return config.apiKey;
         }
       }
@@ -144,7 +167,7 @@ export async function getAgentApiKey(agentId?: string, agentName?: string): Prom
     
     // 如果ID匹配失败，尝试通过名称匹配
     if (agentName && AGENT_CONFIGS[agentName]) {
-      console.log(`Found agent by name: ${agentName}`);
+      console.log(`Found agent by name: ${agentName}, API key: ${AGENT_CONFIGS[agentName].apiKey ? 'exists' : 'missing'}`);
       return AGENT_CONFIGS[agentName].apiKey;
     }
     
@@ -270,7 +293,7 @@ export async function callFastGPT(
               onComplete();
               return;
             }
-          } catch (e) {
+          } catch {
             // 忽略解析错误
             console.warn('Failed to parse chunk:', dataStr);
           }

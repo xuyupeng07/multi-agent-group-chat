@@ -29,7 +29,6 @@ export const ChatInput = forwardRef<{
   isComposing,
   showAgentList,
   filteredAgents,
-  mentionStartIndex,
   onInputChange,
   onSend,
   onKeyDown,
@@ -41,8 +40,18 @@ export const ChatInput = forwardRef<{
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // 当智能体列表变化时重置选中索引
+  const prevFilteredAgentsLengthRef = useRef(filteredAgents.length);
+  
   useEffect(() => {
-    setSelectedIndex(0);
+    const prevLength = prevFilteredAgentsLengthRef.current;
+    const currentLength = filteredAgents.length;
+    
+    // 只有当智能体列表长度变化且当前长度大于0时才重置索引
+    if (prevLength !== currentLength && currentLength > 0) {
+      setSelectedIndex(0);
+    }
+    
+    prevFilteredAgentsLengthRef.current = currentLength;
   }, [filteredAgents]);
 
   // 处理键盘导航

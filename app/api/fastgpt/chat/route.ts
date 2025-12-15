@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       // 获取智能体API密钥
       const agentApiKey = await getAgentApiKey(agentId, agentName);
       if (!agentApiKey) {
+        console.error(`无法获取智能体API密钥: ${agentName || agentId}`);
         return NextResponse.json(
           { error: `无法获取智能体API密钥: ${agentName || agentId}` },
           { status: 404 }

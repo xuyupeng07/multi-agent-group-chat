@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { MessageSquare, Bot, Search, Settings, User, Plus } from "lucide-react";
 
 interface LeftSidebarProps {

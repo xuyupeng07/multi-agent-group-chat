@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
+import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
 import { Message, Agent } from "@/types/chat";
 import { DualSidebar } from "@/components/DualSidebar";
 import { ChatHeader } from "@/components/ChatHeader";
@@ -15,7 +15,6 @@ export default function Home() {
   const [inputValue, setInputValue] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const [showAgentList, setShowAgentList] = useState(false);
   const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
@@ -23,6 +22,7 @@ export default function Home() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isConfigSidebarOpen, setIsConfigSidebarOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<{
     focus: () => void;
@@ -52,7 +52,16 @@ export default function Home() {
       if (response.ok) {
         const agentsData = await response.json();
         // 转换数据库中的智能体数据为前端需要的格式
-        const formattedAgents: Agent[] = agentsData.map((agent: any) => ({
+        const formattedAgents: Agent[] = agentsData.map((agent: {
+          _id: string;
+          name: string;
+          role: string;
+          introduction: string;
+          status: string;
+          apiKey: string;
+          color: string;
+          baseUrl: string;
+        }) => ({
           id: agent._id.toString(), // 使用MongoDB的_id
           name: agent.name,
           role: agent.role,
@@ -73,6 +82,91 @@ export default function Home() {
     }
   };
 
+  // 从数据库加载聊天记录
+  const loadChatFromDatabase = async (chatId: string) => {
+    try {
+      const response = await fetch(`/api/chats/${chatId}`);
+      if (response.ok) {
+        const chatData = await response.json();
+        setMessages(chatData.messages);
+        setChatId(chatData.id);
+        return true;
+      } else {
+        console.error('Failed to load chat from database');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error loading chat from database:', error);
+      return false;
+    }
+  };
+
+  // 保存聊天记录到数据库
+  const saveChatToDatabase = async (chatId: string, messages: Message[], title?: string, retryCount: number = 0) => {
+    try {
+      const payload: { messages: Message[]; title?: string } = { messages };
+      
+      // 如果是新聊天，需要提供标题
+      if (title) {
+        payload.title = title;
+      }
+      
+      const response = await fetch(`/api/chats/${chatId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      if (response.ok) {
+        const chatData = await response.json();
+        return chatData;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to save chat to database:', response.status, errorData.error || 'Unknown error');
+        
+        // 如果是版本冲突错误且重试次数少于3次，则延迟后重试
+        if (response.status === 500 && errorData.error && errorData.error.includes('版本') && retryCount < 3) {
+          console.log(`Retrying save operation (attempt ${retryCount + 1}/3)...`);
+          // 延迟一段时间后重试，避免立即重试导致相同的冲突
+          await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1)));
+          return saveChatToDatabase(chatId, messages, title, retryCount + 1);
+        }
+        
+        return null;
+      }
+    } catch (error) {
+      console.error('Error saving chat to database:', error);
+      return null;
+    }
+  };
+
+  // 创建新聊天记录
+  const createNewChatInDatabase = async (title: string, messages: Message[] = []) => {
+    try {
+      const response = await fetch('/api/chats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title, messages }),
+      });
+      
+      if (response.ok) {
+        const chatData = await response.json();
+        return chatData.id;
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to create new chat in database:', response.status, errorData.error || 'Unknown error');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating new chat in database:', error);
+      return null;
+    }
+  };
+
 
 
   const handleSend = async () => {
@@ -80,13 +174,28 @@ export default function Home() {
       // 提取@的智能体
       const mentionedAgent = extractMentionedAgent(inputValue);
       // 保留原始输入，不移除@部分
-      let messageContent = inputValue.trim();
+      const messageContent = inputValue.trim();
       
-      // 生成或使用现有的chatId（使用用户第一句的时间戳）
+      // 生成或使用现有的chatId
       let currentChatId = chatId;
+      
       if (!currentChatId) {
-        currentChatId = `chat_${Date.now()}`;
-        setChatId(currentChatId);
+        // 如果是新聊天，先在数据库中创建记录
+        const chatTitle = messageContent.length > 20 ? 
+          messageContent.substring(0, 20) + '...' : 
+          messageContent;
+        
+        const newChatId = await createNewChatInDatabase(chatTitle);
+        if (newChatId) {
+          currentChatId = newChatId;
+          setChatId(currentChatId);
+          const isNewChat = true;
+        } else {
+          console.error('Failed to create new chat in database');
+          // 如果创建失败，使用临时ID
+          currentChatId = `temp_${Date.now()}`;
+          setChatId(currentChatId);
+        }
       }
       
       // 添加用户消息
@@ -99,7 +208,19 @@ export default function Home() {
         isUser: true,
       };
       
-      setMessages(prev => [...prev, userMessage]);
+      setMessages(prev => {
+        const updatedMessages = [...prev, userMessage];
+        
+        // 保存消息到数据库
+        if (currentChatId && !currentChatId.startsWith('temp_')) {
+          saveChatToDatabase(currentChatId, updatedMessages).catch(error => {
+            console.error('Error saving chat to database:', error);
+          });
+        }
+        
+        return updatedMessages;
+      });
+      
       setInputValue("");
       setIsLoading(true);
       
@@ -168,7 +289,7 @@ export default function Home() {
         callFastGPT(
           agentConfig.id,
           agentConfig.name,
-          currentChatId,
+          currentChatId || '',
           fastgptMessages,
           (chunk: string) => {
             // 流式更新消息内容，第一个chunk替换掉"思考中......"
@@ -184,6 +305,18 @@ export default function Home() {
             // 流式完成
             setIsLoading(false);
             setCurrentStreamingMessageId(null);
+            
+            // 保存完整的聊天记录到数据库
+            if (currentChatId && !currentChatId.startsWith('temp_')) {
+              // 获取当前消息状态
+              setMessages(currentMessages => {
+                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                  console.error('Error saving chat to database:', error);
+                });
+                return currentMessages;
+              });
+            }
+            
             // AI回复完成后自动聚焦输入框
             setTimeout(() => {
               chatInputRef.current?.focus();
@@ -219,6 +352,17 @@ export default function Home() {
                   : msg
               )
             );
+            
+            // 保存错误消息到数据库
+            if (currentChatId && !currentChatId.startsWith('temp_')) {
+              setMessages(currentMessages => {
+                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                  console.error('Error saving chat to database:', error);
+                });
+                return currentMessages;
+              });
+            }
+            
             setIsLoading(false);
             setCurrentStreamingMessageId(null);
             // 错误处理后也聚焦输入框，方便用户重新输入
@@ -248,7 +392,7 @@ export default function Home() {
           setMessages(prev => [...prev, dispatchMessage]);
           
           // 调用调度中心API
-          const dispatchResponse: DispatchCenterResponse = await callDispatchCenter(currentChatId, fastgptMessages);
+          const dispatchResponse: DispatchCenterResponse = await callDispatchCenter(currentChatId || '', fastgptMessages);
           
           // 解析调度中心返回的智能体列表
           let agentList = [];
@@ -266,11 +410,11 @@ export default function Home() {
             agentList = [{ 
               id: '', // 空ID，将通过名称匹配
               name: '旅行管家' 
-            }];
+            }] as Array<{ id: string; name: string }>;
           }
           
           // 更新调度中心消息，显示选择的智能体
-          const agentNames = agentList.map((agent: any) => agent.name).join('、');
+          const agentNames = agentList.map((agent: { id: string; name: string }) => agent.name).join('、');
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.id === dispatchMessageId 
@@ -280,7 +424,7 @@ export default function Home() {
           );
           
           // 按顺序调用智能体
-          await callAgentsSequentially(agentList, currentChatId, fastgptMessages);
+          await callAgentsSequentially(agentList, currentChatId || '', fastgptMessages);
           
         } catch (error) {
           console.error('Error in dispatch center flow:', error);
@@ -294,6 +438,16 @@ export default function Home() {
                   : msg
               )
             );
+            
+            // 保存错误消息到数据库
+            if (currentChatId && !currentChatId.startsWith('temp_')) {
+              setMessages(currentMessages => {
+                saveChatToDatabase(currentChatId, currentMessages).catch(error => {
+                  console.error('Error saving chat to database:', error);
+                });
+                return currentMessages;
+              });
+            }
           }
           
           setIsLoading(false);
@@ -407,6 +561,16 @@ export default function Home() {
     setIsLoading(false);
     setCurrentStreamingMessageId(null);
     
+    // 保存完整的聊天记录到数据库
+    if (chatId && !chatId.startsWith('temp_')) {
+      setMessages(currentMessages => {
+        saveChatToDatabase(chatId, currentMessages).catch(error => {
+          console.error('Error saving chat to database:', error);
+        });
+        return currentMessages;
+      });
+    }
+    
     // 所有AI回复完成后自动聚焦输入框
     setTimeout(() => {
       chatInputRef.current?.focus();
@@ -414,9 +578,12 @@ export default function Home() {
   };
 
   // 处理聊天选择
-  const handleChatSelect = (chatId: string) => {
-    // 这里可以根据chatId加载对应的聊天记录
-    console.log("Selected chat:", chatId);
+  const handleChatSelect = async (chatId: string) => {
+    // 加载对应的聊天记录
+    const success = await loadChatFromDatabase(chatId);
+    if (!success) {
+      console.error("Failed to load chat:", chatId);
+    }
   };
 
   // 处理智能体选择
