@@ -17,7 +17,7 @@ import {
   Settings,
   LogOut
 } from "lucide-react";
-import { FastGPTAgent, callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText } from "@/lib/fastgpt";
+import { FastGPTAgent, callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, removeMentionFromText, loadAgentConfigs } from "@/lib/fastgpt";
 
 interface Message {
   id: string;
@@ -63,6 +63,11 @@ export default function Home() {
     }
   }, [messages]);
 
+  // Load agent configs from database on mount
+  useEffect(() => {
+    loadAgentConfigs();
+  }, []);
+
   const agents: Agent[] = [
     { 
       id: "0", 
@@ -99,14 +104,36 @@ export default function Home() {
       // 提取@的智能体
       const mentionedAgent = extractMentionedAgent(inputValue);
       // 移除@部分，获取实际消息内容
-      const messageContent = removeMentionFromText(inputValue);
+      let messageContent = removeMentionFromText(inputValue);
+      
+      // 如果没有@智能体或者移除@后内容为空，使用原始输入
+      if (!mentionedAgent && !messageContent.trim()) {
+        messageContent = inputValue.trim();
+      }
       
       // 如果没有@智能体，默认使用旅行管家
       const agentName = mentionedAgent || "旅行管家";
+      console.log('Debug - mentionedAgent:', mentionedAgent);
+      console.log('Debug - agentName:', agentName);
+      console.log('Debug - inputValue:', inputValue);
+      console.log('Debug - messageContent:', messageContent);
+      console.log('Debug - available agents:', Object.keys(AGENT_CONFIGS));
+      
       const agentConfig = AGENT_CONFIGS[agentName as keyof typeof AGENT_CONFIGS];
       
       if (!agentConfig) {
         console.error("未找到智能体配置:", agentName);
+        console.error("可用的智能体配置:", Object.keys(AGENT_CONFIGS));
+        // 显示错误消息给用户
+        const errorMessage: Message = {
+          id: Date.now().toString(),
+          agentName: "系统",
+          agentColor: "bg-red-500",
+          content: `错误：未找到智能体配置 "${agentName}」。可用的智能体：${Object.keys(AGENT_CONFIGS).join('、')}`,
+          timestamp: new Date().toISOString(),
+          isUser: false,
+        };
+        setMessages(prev => [...prev, errorMessage]);
         return;
       }
       
@@ -122,7 +149,7 @@ export default function Home() {
         id: Date.now().toString(),
         agentName: "Me",
         agentColor: "bg-indigo-600",
-        content: messageContent || inputValue, // 如果移除@后为空，使用原始输入
+        content: messageContent, // 使用处理后的消息内容
         timestamp: new Date().toISOString(),
         isUser: true,
       };
@@ -157,6 +184,13 @@ export default function Home() {
         }
       ];
       
+      console.log('Debug - fastgptMessages:', fastgptMessages);
+      console.log('Debug - current agent config:', {
+        name: agentConfig.name,
+        apiKeyLength: agentConfig.apiKey.length,
+        color: agentConfig.color
+      });
+      
       // 调用FastGPT API
       callFastGPT(
         agentConfig.apiKey,
@@ -180,10 +214,30 @@ export default function Home() {
         (error: Error) => {
           // 处理错误
           console.error("FastGPT API error:", error);
+          console.error("Error details:", {
+            agentName: agentConfig.name,
+            apiKeyLength: agentConfig.apiKey.length,
+            chatId: currentChatId,
+            messagesCount: fastgptMessages.length
+          });
+          
+          let errorMessage = "[请求出错，请稍后再试]";
+          if (error.message.includes('401')) {
+            errorMessage = "[API密钥无效，请联系管理员]";
+          } else if (error.message.includes('403')) {
+            errorMessage = "[API访问被拒绝，请联系管理员]";
+          } else if (error.message.includes('404')) {
+            errorMessage = "[API服务未找到，请联系管理员]";
+          } else if (error.message.includes('429')) {
+            errorMessage = "[请求过于频繁，请稍后再试]";
+          } else if (error.message.includes('500')) {
+            errorMessage = "[服务器内部错误，请稍后再试]";
+          }
+          
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.id === assistantMessageId 
-                ? { ...msg, content: "[请求出错，请稍后再试]" }
+                ? { ...msg, content: errorMessage }
                 : msg
             )
           );

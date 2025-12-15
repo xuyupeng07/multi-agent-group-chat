@@ -35,27 +35,31 @@ export interface FastGPTAgent {
   shareId?: string;
 }
 
-// 智能体配置
-export const AGENT_CONFIGS = {
-  "旅行管家": {
-    apiKey: process.env.NEXT_PUBLIC_FASTGPT_TRAVEL_KEY || "",
-    name: "旅行管家",
-    color: "bg-orange-500"
-  },
-  "交通助手": {
-    apiKey: process.env.NEXT_PUBLIC_FASTGPT_TRAFFIC_KEY || "",
-    name: "交通助手",
-    color: "bg-blue-500"
-  },
-  "酒店管家": {
-    apiKey: process.env.NEXT_PUBLIC_FASTGPT_HOTEL_KEY || "",
-    name: "酒店管家",
-    color: "bg-green-500"
-  },
-  "美食顾问": {
-    apiKey: process.env.NEXT_PUBLIC_FASTGPT_FOOD_KEY || "",
-    name: "美食顾问",
-    color: "bg-purple-500"
+// 智能体配置 - 从数据库获取
+export let AGENT_CONFIGS: Record<string, { apiKey: string; name: string; color: string }> = {
+  // 默认配置，当数据库加载失败时使用（空配置）
+};
+
+// 从数据库加载智能体配置
+export async function loadAgentConfigs() {
+  try {
+    const response = await fetch('/api/agents');
+    if (response.ok) {
+      const agents = await response.json();
+      AGENT_CONFIGS = agents.reduce((configs: Record<string, any>, agent: any) => {
+        configs[agent.name] = {
+          apiKey: agent.apiKey,
+          name: agent.name,
+          color: agent.color
+        };
+        return configs;
+      }, {});
+      console.log('Successfully loaded agent configs from database:', Object.keys(AGENT_CONFIGS));
+    } else {
+      console.warn('Failed to load agent configs from database, using default configs:', response.status);
+    }
+  } catch (error) {
+    console.error('Failed to load agent configs from database, using default configs:', error);
   }
 };
 
@@ -94,6 +98,10 @@ export async function callFastGPT(
   onError: (error: Error) => void
 ) {
   try {
+    console.log('Calling FastGPT API with chatId:', chatId);
+    console.log('API Key length:', apiKey.length);
+    console.log('Messages count:', messages.length);
+    
     const response = await fetch('https://cloud.fastgpt.io/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -109,8 +117,23 @@ export async function callFastGPT(
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      console.error('FastGPT API error response:', response.status, response.statusText);
+      let errorMessage = `HTTP error! status: ${response.status}, statusText: ${response.statusText}`;
+      
+      if (response.status === 403) {
+        errorMessage = 'API密钥无效或未授权，请检查智能体配置中的API密钥';
+      } else if (response.status === 401) {
+        errorMessage = 'API密钥认证失败，请检查智能体配置中的API密钥';
+      } else if (response.status === 429) {
+        errorMessage = '请求过于频繁，请稍后再试';
+      } else if (response.status === 500) {
+        errorMessage = 'FastGPT服务器内部错误，请稍后再试';
+      }
+      
+      throw new Error(errorMessage);
     }
+    
+    console.log('FastGPT API response received, starting stream processing...');
 
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
@@ -143,10 +166,12 @@ export async function callFastGPT(
             const data: FastGPTStreamResponse = JSON.parse(dataStr);
             
             if (data.choices && data.choices[0] && data.choices[0].delta.content) {
+              console.log('Received chunk:', data.choices[0].delta.content);
               onChunk(data.choices[0].delta.content);
             }
             
             if (data.choices[0]?.finish_reason === 'stop') {
+              console.log('Stream completed with stop reason');
               onComplete();
               return;
             }
