@@ -85,6 +85,18 @@ const parseMessageContent = (content: string, isUserMessage: boolean) => {
 export function MessageItem({ message }: MessageItemProps) {
   return (
     <div className={`flex gap-3 ${message.isUser ? "flex-row-reverse" : ""}`}>
+      {/* 用户头像 */}
+      {message.isUser && (
+        <Avatar className="h-8 w-8 mt-1">
+          <img
+            src="/fastgpt.png"
+            alt="user"
+            className="h-full w-full rounded-full object-cover bg-white border-2 border-slate-200 dark:border-slate-700"
+          />
+        </Avatar>
+      )}
+      
+      {/* AI头像 */}
       {!message.isUser && (
         <Avatar className="h-8 w-8 mt-1">
           <AvatarFallback className={`${message.agentColor} text-white text-xs`}>

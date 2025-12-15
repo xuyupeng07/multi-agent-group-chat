@@ -46,9 +46,9 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
   );
   
   return (
-    <div className="h-screen w-52 overflow-y-auto bg-slate-50 py-8 dark:bg-slate-900 sm:w-60">
+    <div className="h-screen w-52 flex flex-col bg-slate-50 dark:bg-slate-900 sm:w-60 border-r border-slate-200 dark:border-slate-700 shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between px-5">
+      <div className="flex items-center justify-between px-5 py-8">
         <div className="flex items-center">
           <h2 className="inline text-lg font-medium text-slate-800 dark:text-slate-200">
             {activeView === 'chats' ? '聊天记录' : '智能体'}
@@ -71,7 +71,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
       </div>
 
       {/* Search */}
-      <div className="mx-2 mt-8 space-y-4">
+      <div className="mx-2 space-y-4">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <Input
@@ -85,7 +85,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
       </div>
 
       {/* Content */}
-      <div className="mx-2 mt-4 space-y-2">
+      <div className="flex-1 overflow-y-auto mx-2 mt-4 space-y-2">
         {activeView === 'chats' ? (
           // 聊天历史列表
           <div className="space-y-2">
@@ -164,6 +164,45 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
           </div>
         )}
       </div>
+      
+      {/* 用户组件 - 只在聊天记录视图中显示 */}
+      {activeView === 'chats' && (
+        <div className="w-full bg-white border-t border-slate-200 dark:border-slate-700">
+          <div className="w-full px-3 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex">
+                <div className="relative inline-flex">
+                  <span
+                    className="absolute bottom-0 right-0 h-3 w-3 rounded-full border bg-green-600 dark:border-slate-900 dark:bg-green-600"
+                  ></span>
+                  <img
+                    src="/fastgpt.png"
+                    alt="user"
+                    className="h-10 w-10 rounded-full bg-white border-2 border-slate-200 dark:border-slate-700"
+                  />
+                </div>
+                <div className="ml-3 flex flex-col justify-center">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                    John Doe
+                  </h3>
+                  <span className="text-xs text-slate-400">johndoe@gmail.com</span>
+                </div>
+              </div>
+              <span
+                className="rounded-full bg-green-600/10 px-2 py-0.5 text-xs font-semibold leading-4 text-green-600"
+              >
+                Free
+              </span>
+            </div>
+            <button
+              className="mt-4 w-full rounded-lg border border-slate-300 p-3 text-center text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-blue-600 hover:text-slate-50 focus:outline-none dark:border-slate-700 dark:text-slate-200"
+              type="button"
+            >
+              ✨ 升级到专业版
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
