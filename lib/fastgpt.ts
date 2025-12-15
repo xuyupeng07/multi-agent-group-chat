@@ -38,17 +38,17 @@ export interface FastGPTAgent {
 // 智能体配置
 export const AGENT_CONFIGS = {
   "交通助手": {
-    apiKey: "fastgpt-nDy8NJLRSiex8ATMGDtxmCoDjGC7MhrE8OyyNEHZjWc6cNOYeYcPmYBB",
+    apiKey: process.env.NEXT_PUBLIC_FASTGPT_TRAFFIC_KEY || "",
     name: "交通助手",
     color: "bg-blue-500"
   },
   "酒店管家": {
-    apiKey: "fastgpt-aiPG4I8iOc9JwWu0QuK4YmyZspaOHz838VI8FiSWhWFcRhIj2GUj8jL",
+    apiKey: process.env.NEXT_PUBLIC_FASTGPT_HOTEL_KEY || "",
     name: "酒店管家",
     color: "bg-green-500"
   },
   "美食顾问": {
-    apiKey: "fastgpt-d4GnvzjySByhYJoqS4SFuKbhf4f0PWrtfH5bQKn9L6GvWv29Arlf8Vku1Tux2QR3f",
+    apiKey: process.env.NEXT_PUBLIC_FASTGPT_FOOD_KEY || "",
     name: "美食顾问",
     color: "bg-purple-500"
   }

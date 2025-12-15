@@ -120,13 +120,13 @@ export default function Home() {
         isUser: true,
       };
       
-      // 创建一个空的助手消息，用于流式更新
+      // 创建一个助手消息，初始显示"思考中......"，用于流式更新
       const assistantMessageId = (Date.now() + 1).toString();
       const assistantMessage: Message = {
         id: assistantMessageId,
         agentName: agentConfig.name,
         agentColor: agentConfig.color,
-        content: "",
+        content: "思考中......",
         timestamp: new Date().toISOString(),
         isUser: false,
       };
@@ -156,11 +156,11 @@ export default function Home() {
         currentChatId,
         fastgptMessages,
         (chunk: string) => {
-          // 流式更新消息内容
+          // 流式更新消息内容，第一个chunk替换掉"思考中......"
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content + chunk }
+                ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
                 : msg
             )
           );
@@ -176,7 +176,7 @@ export default function Home() {
           setMessages(prevMessages => 
             prevMessages.map(msg => 
               msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content + "\n\n[请求出错，请稍后再试]" }
+                ? { ...msg, content: "[请求出错，请稍后再试]" }
                 : msg
             )
           );
