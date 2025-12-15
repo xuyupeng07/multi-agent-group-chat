@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Send } from "lucide-react";
@@ -20,7 +20,10 @@ interface ChatInputProps {
   onSelectAgent: (agentName: string) => void;
 }
 
-export function ChatInput({
+export const ChatInput = forwardRef<{
+  focus: () => void;
+  setCursorPosition: (position: number) => void;
+}, ChatInputProps>(({
   inputValue,
   isLoading,
   isComposing,
@@ -33,8 +36,57 @@ export function ChatInput({
   onCompositionStart,
   onCompositionEnd,
   onSelectAgent
-}: ChatInputProps) {
+}, ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // 当智能体列表变化时重置选中索引
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [filteredAgents]);
+
+  // 处理键盘导航
+  const handleKeyDownWithNavigation = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showAgentList && filteredAgents.length > 0) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex(prev => 
+            prev < filteredAgents.length - 1 ? prev + 1 : prev
+          );
+          return;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex(prev => prev > 0 ? prev - 1 : 0);
+          return;
+        case 'Enter':
+          e.preventDefault();
+          onSelectAgent(filteredAgents[selectedIndex].name);
+          return;
+        case 'Escape':
+          e.preventDefault();
+          // 让父组件处理关闭
+          onKeyDown(e);
+          return;
+      }
+    }
+    
+    // 其他按键交给父组件处理
+    onKeyDown(e);
+  };
+
+  // 暴露方法给父组件
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    },
+    setCursorPosition: (position: number) => {
+      if (inputRef.current) {
+        inputRef.current.setSelectionRange(position, position);
+        inputRef.current.focus();
+      }
+    }
+  }));
 
   return (
     <div className="relative border-t border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md p-4">
@@ -44,7 +96,7 @@ export function ChatInput({
             ref={inputRef}
             value={inputValue}
             onChange={onInputChange}
-            onKeyDown={onKeyDown}
+            onKeyDown={handleKeyDownWithNavigation}
             onCompositionStart={onCompositionStart}
             onCompositionEnd={onCompositionEnd}
             placeholder="输入消息，使用@智能体名称来指定智能体..."
@@ -55,6 +107,7 @@ export function ChatInput({
             show={showAgentList}
             filteredAgents={filteredAgents}
             onSelectAgent={onSelectAgent}
+            selectedIndex={selectedIndex}
           />
         </div>
         <Button
@@ -67,4 +120,6 @@ export function ChatInput({
       </div>
     </div>
   );
-}
+});
+
+ChatInput.displayName = 'ChatInput';

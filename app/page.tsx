@@ -20,6 +20,10 @@ export default function Home() {
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<{
+    focus: () => void;
+    setCursorPosition: (position: number) => void;
+  }>(null);
 
   // Auto scroll to bottom when new messages are added
   useEffect(() => {
@@ -178,6 +182,10 @@ export default function Home() {
           // 流式完成
           setIsLoading(false);
           setCurrentStreamingMessageId(null);
+          // AI回复完成后自动聚焦输入框
+          setTimeout(() => {
+            chatInputRef.current?.focus();
+          }, 100);
         },
         (error: Error) => {
           // 处理错误
@@ -211,6 +219,10 @@ export default function Home() {
           );
           setIsLoading(false);
           setCurrentStreamingMessageId(null);
+          // 错误处理后也聚焦输入框，方便用户重新输入
+          setTimeout(() => {
+            chatInputRef.current?.focus();
+          }, 100);
         }
       );
     }
@@ -222,6 +234,10 @@ export default function Home() {
     setChatId(null);
     setCurrentStreamingMessageId(null);
     setInputValue("");
+    // 新建对话后聚焦输入框
+    setTimeout(() => {
+      chatInputRef.current?.focus();
+    }, 100);
   };
   
   // 处理输入变化，检测@符号
@@ -264,6 +280,14 @@ export default function Home() {
       setInputValue(newValue);
       setShowAgentList(false);
       setMentionStartIndex(null);
+      
+      // 设置光标位置到智能体名称后面
+      setTimeout(() => {
+        if (chatInputRef.current) {
+          const cursorPosition = newValue.length;
+          chatInputRef.current.setCursorPosition(cursorPosition);
+        }
+      }, 0);
     }
   };
   
@@ -290,6 +314,7 @@ export default function Home() {
           <ChatHeader agents={agents} />
           <MessageList messages={messages} scrollAreaRef={scrollAreaRef} />
           <ChatInput
+            ref={chatInputRef}
             inputValue={inputValue}
             isLoading={isLoading}
             isComposing={isComposing}

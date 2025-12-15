@@ -5,6 +5,7 @@ interface AgentListProps {
   show: boolean;
   filteredAgents: Agent[];
   onSelectAgent: (agentName: string) => void;
+  selectedIndex: number;
 }
 
 const getInitials = (name: string) => {
@@ -15,16 +16,20 @@ const getInitials = (name: string) => {
     .toUpperCase();
 };
 
-export function AgentList({ show, filteredAgents, onSelectAgent }: AgentListProps) {
+export function AgentList({ show, filteredAgents, onSelectAgent, selectedIndex }: AgentListProps) {
   if (!show || filteredAgents.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-      {filteredAgents.map((agent) => (
+    <div className="absolute bottom-full left-0 mb-2 w-max min-w-max bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto">
+      {filteredAgents.map((agent, index) => (
         <button
           key={agent.id}
           onClick={() => onSelectAgent(agent.name)}
-          className="w-full px-4 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm text-zinc-900 dark:text-zinc-100 transition-colors flex items-center gap-3"
+          className={`w-full px-4 py-2 text-left text-sm transition-colors flex items-center gap-3 ${
+            index === selectedIndex 
+              ? "bg-indigo-100 dark:bg-indigo-900 text-indigo-900 dark:text-indigo-100" 
+              : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
+          }`}
         >
           <Avatar className="h-8 w-8">
             <AvatarFallback className={`${agent.color} text-white text-xs font-medium`}>
