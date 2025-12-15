@@ -1,26 +1,23 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Agent } from "@/types/chat";
 import { X, Save } from "lucide-react";
 
-interface AgentConfigSidebarProps {
+interface CreateAgentSidebarProps {
   isOpen: boolean;
-  agent: Agent | null;
   onClose: () => void;
   onSave: (agent: Agent) => void;
 }
 
-export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConfigSidebarProps) {
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  
+export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSidebarProps) {
   const [formData, setFormData] = useState<Partial<Agent>>({
-    name: agent?.name || "",
-    role: agent?.role || "",
-    introduction: agent?.introduction || "",
-    apiKey: agent?.apiKey || "",
-    status: agent?.status || "offline",
-    color: agent?.color || "bg-blue-500"
+    name: "",
+    role: "",
+    introduction: "",
+    apiKey: "",
+    status: "online",
+    color: "bg-blue-500"
   });
   
   const [baseUrl, setBaseUrl] = useState("https://cloud.fastgpt.io/");
@@ -29,71 +26,25 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
   const [topP, setTopP] = useState("1");
   const [model, setModel] = useState("gpt-3.5-turbo");
 
-  // 当agent变化时更新表单数据
-  useEffect(() => {
-    if (agent) {
-      setFormData({
-        name: agent.name,
-        role: agent.role,
-        apiKey: agent.apiKey || "",
-        status: agent.status,
-        color: agent.color,
-        introduction: agent.introduction || ""
-      });
-      // 如果agent有baseUrl，使用它；否则使用默认值
-      setBaseUrl(agent.baseUrl || "https://cloud.fastgpt.io/");
-    }
-  }, [agent]);
-
-  // 监听点击事件，当点击侧边栏外部时关闭侧边栏
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      // 检查点击目标是否是智能体按钮或其子元素
-      const target = event.target as HTMLElement;
-      const isAgentButton = target.closest('[data-agent-button]');
-      
-      // 如果点击的是智能体按钮，不执行关闭操作
-      if (isAgentButton) {
-        return;
-      }
-      
-      // 否则，检查是否在侧边栏外部
-      if (sidebarRef.current && !sidebarRef.current.contains(target)) {
-        onClose();
-      }
-    };
-
-    // 只有在侧边栏打开时才添加事件监听器
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    // 清理函数，移除事件监听器
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
-
   const handleSave = async () => {
-    if (agent && formData.name && formData.role) {
+    if (formData.name && formData.role) {
       try {
-        // 准备请求数据，确保所有字段都有值
+        // 准备请求数据，不需要提供id，MongoDB会自动生成
         const requestData = {
-          id: agent.id,
           name: formData.name,
           role: formData.role,
           introduction: formData.introduction || "",
           apiKey: formData.apiKey || "",
           status: formData.status || "online",
-          color: formData.color || agent.color,
+          color: formData.color || "bg-blue-500",
           baseUrl: baseUrl || "https://cloud.fastgpt.io/"
         };
         
-        console.log('Sending request data:', requestData);
+        console.log('Creating new agent with data:', requestData);
         
-        // 调用API更新智能体配置
-        const response = await fetch('/api/agents/update-config', {
-          method: 'PUT',
+        // 调用API创建新智能体
+        const response = await fetch('/api/agents', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -101,60 +52,57 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
         });
 
         if (!response.ok) {
-          // 尝试获取错误详情
-          let errorMessage = 'Failed to update agent configuration';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-            if (errorData.details) {
-              errorMessage += `: ${errorData.details}`;
-            }
-          } catch {
-            // 如果无法解析错误响应，使用默认错误消息
-          }
-          throw new Error(errorMessage);
+          throw new Error('Failed to create agent');
         }
 
         const result = await response.json();
-        console.log('配置更新成功:', result);
+        console.log('智能体创建成功:', result);
         
-        // 更新本地agent对象
-        const updatedAgent: Agent = {
-          ...agent,
-          name: formData.name || agent.name,
-          role: formData.role || agent.role,
+        // 创建新的agent对象，使用MongoDB返回的_id作为id
+        const newAgent: Agent = {
+          id: result._id.toString(), // 使用MongoDB返回的_id
+          name: formData.name,
+          role: formData.role,
           introduction: formData.introduction || "",
           apiKey: formData.apiKey,
           status: formData.status as "online" | "busy" | "offline",
-          color: formData.color || agent.color,
+          color: formData.color || "bg-blue-500",
           baseUrl: baseUrl
         };
         
-        onSave(updatedAgent);
+        onSave(newAgent);
+        
+        // 重置表单
+        setFormData({
+          name: "",
+          role: "",
+          introduction: "",
+          apiKey: "",
+          status: "online",
+          color: "bg-blue-500"
+        });
+        setBaseUrl("https://cloud.fastgpt.io/");
+        setMaxTokens("2048");
+        setTemperature("0.7");
+        setTopP("1");
+        setModel("gpt-3.5-turbo");
       } catch (error) {
-        console.error('保存智能体配置时出错:', error);
-        alert(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        console.error('创建智能体时出错:', error);
+        // 可以在这里添加错误提示
       }
     }
   };
 
-  if (!agent) return null;
+  if (!isOpen) return null;
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
-    >
+    <div className="fixed inset-0 z-50 pointer-events-none">
       {/* 侧边栏 */}
-      <div 
-        ref={sidebarRef} 
-        className={`absolute right-0 top-0 h-full w-80 overflow-y-auto bg-white dark:bg-zinc-900 shadow-xl pointer-events-auto transform transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
+      <div className="absolute right-0 top-0 h-full w-80 overflow-y-auto bg-white dark:bg-zinc-900 shadow-xl pointer-events-auto">
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-700">
           <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
-            配置智能体
+            创建智能体
           </h2>
           <button
             onClick={onClose}
@@ -179,6 +127,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
                 type="text"
                 id="agent-name"
                 className="block w-full rounded-lg border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="输入智能体名称"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -193,6 +142,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
                 type="text"
                 id="agent-role"
                 className="block w-full rounded-lg border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="输入智能体角色"
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               />
@@ -211,6 +161,28 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
                 value={formData.introduction || ''}
                 onChange={(e) => setFormData({ ...formData, introduction: e.target.value })}
               />
+            </div>
+            
+            {/* 颜色选择 */}
+            <div className="mb-4">
+              <label htmlFor="agent-color" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                颜色
+              </label>
+              <select
+                id="agent-color"
+                className="block w-full cursor-pointer rounded-lg border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                value={formData.color}
+                onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+              >
+                <option value="bg-blue-500">蓝色</option>
+                <option value="bg-green-500">绿色</option>
+                <option value="bg-purple-500">紫色</option>
+                <option value="bg-red-500">红色</option>
+                <option value="bg-yellow-500">黄色</option>
+                <option value="bg-pink-500">粉色</option>
+                <option value="bg-indigo-500">靛蓝</option>
+                <option value="bg-gray-500">灰色</option>
+              </select>
             </div>
             
             {/* 状态开关 */}
@@ -342,7 +314,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
             className="flex w-full items-center justify-center rounded-lg bg-blue-600 p-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600"
           >
             <Save className="mr-2 h-4 w-4" />
-            保存更改
+            创建智能体
           </button>
         </div>
       </div>

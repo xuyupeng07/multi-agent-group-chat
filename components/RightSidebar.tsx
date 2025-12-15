@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, Bot } from "lucide-react";
+import { Search, MessageSquare, Bot, Plus } from "lucide-react";
 import { Agent } from "@/types/chat";
 
 interface ChatHistoryItem {
@@ -19,6 +19,7 @@ interface RightSidebarProps {
   loading?: boolean;
   onChatSelect: (chatId: string) => void;
   onAgentSelect: (agent: Agent) => void;
+  onAddAgent?: () => void;
 }
 
 interface ChatHistoryItem {
@@ -28,7 +29,7 @@ interface ChatHistoryItem {
   preview: string;
 }
 
-export function RightSidebar({ activeView, agents, chatHistory, loading = false, onChatSelect, onAgentSelect }: RightSidebarProps) {
+export function RightSidebar({ activeView, agents, chatHistory, loading = false, onChatSelect, onAgentSelect, onAddAgent }: RightSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   
   // 过滤聊天历史
@@ -47,14 +48,25 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
   return (
     <div className="h-screen w-52 overflow-y-auto bg-slate-50 py-8 dark:bg-slate-900 sm:w-60">
       {/* Header */}
-      <div className="flex items-start px-5">
-        <h2 className="inline text-lg font-medium text-slate-800 dark:text-slate-200">
-          {activeView === 'chats' ? '聊天记录' : '智能体'}
-        </h2>
-        {activeView === 'chats' && (
-          <span className="ml-2 rounded-full bg-blue-600 px-2 py-1 text-xs text-slate-200">
-            {chatHistory.length}
-          </span>
+      <div className="flex items-center justify-between px-5">
+        <div className="flex items-center">
+          <h2 className="inline text-lg font-medium text-slate-800 dark:text-slate-200">
+            {activeView === 'chats' ? '聊天记录' : '智能体'}
+          </h2>
+          {activeView === 'chats' && (
+            <span className="ml-2 rounded-full bg-blue-600 px-2 py-1 text-xs text-slate-200">
+              {chatHistory.length}
+            </span>
+          )}
+        </div>
+        {activeView === 'agents' && onAddAgent && (
+          <button
+            onClick={onAddAgent}
+            className="rounded-lg p-1.5 text-slate-500 transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800"
+            title="添加智能体"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
         )}
       </div>
 
@@ -117,6 +129,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
                   key={agent.id}
                   onClick={() => onAgentSelect(agent)}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:hover:bg-slate-800"
+                  data-agent-button
                 >
                   <div className="relative">
                     <div className={`h-10 w-10 rounded-full ${agent.color} flex items-center justify-center text-white font-medium`}>
@@ -124,7 +137,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
                     </div>
                     <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${
                       agent.status === 'online' ? 'bg-green-500' :
-                      agent.status === 'busy' ? 'bg-red-500' : 'bg-slate-400'
+                      agent.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                   </div>
                   <div className="flex-1 min-w-0">

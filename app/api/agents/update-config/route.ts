@@ -32,7 +32,8 @@ export async function PUT(request: Request) {
     if (color !== undefined) updateData.color = color;
     if (baseUrl !== undefined) updateData.baseUrl = baseUrl;
     
-    // 更新智能体配置
+    // 更新智能体配置 - 使用_id查找
+    // 前端传递的id实际上是MongoDB的_id
     const updatedAgent = await Agent.findByIdAndUpdate(
       id,
       updateData,
@@ -52,7 +53,8 @@ export async function PUT(request: Request) {
   } catch (error) {
     console.error('Error updating agent configuration:', error);
     return NextResponse.json({ 
-      error: 'Failed to update agent configuration' 
+      error: 'Failed to update agent configuration',
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }

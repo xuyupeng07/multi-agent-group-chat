@@ -8,6 +8,7 @@ import { ChatHeader } from "@/components/ChatHeader";
 import { MessageList } from "@/components/MessageList";
 import { ChatInput } from "@/components/ChatInput";
 import { AgentConfigSidebar } from "@/components/AgentConfigSidebar";
+import { CreateAgentSidebar } from "@/components/CreateAgentSidebar";
 
 export default function Home() {
   // Static initial data to prevent hydration mismatch
@@ -21,6 +22,7 @@ export default function Home() {
   const [chatId, setChatId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isConfigSidebarOpen, setIsConfigSidebarOpen] = useState(false);
+  const [isCreateAgentSidebarOpen, setIsCreateAgentSidebarOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -588,8 +590,36 @@ export default function Home() {
 
   // 处理智能体选择
   const handleAgentSelect = (agent: Agent) => {
-    setSelectedAgent(agent);
-    setIsConfigSidebarOpen(true);
+    // 如果侧边栏已经打开且是同一个智能体，则关闭侧边栏
+    if (isConfigSidebarOpen && selectedAgent?.id === agent.id) {
+      setIsConfigSidebarOpen(false);
+      setSelectedAgent(null);
+    } else {
+      // 否则打开侧边栏并选择智能体
+      setSelectedAgent(agent);
+      setIsConfigSidebarOpen(true);
+    }
+  };
+
+  // 处理添加智能体
+  const handleAddAgent = () => {
+    setIsCreateAgentSidebarOpen(true);
+  };
+
+  // 处理创建智能体保存
+  const handleCreateAgentSave = async (newAgent: Agent) => {
+    // 添加新智能体到列表
+    setAgents(prevAgents => [...prevAgents, newAgent]);
+    
+    // 同时更新AGENT_CONFIGS对象，确保新创建的智能体可以被立即艾特
+    AGENT_CONFIGS[newAgent.name] = {
+      apiKey: newAgent.apiKey || '',
+      name: newAgent.name,
+      color: newAgent.color,
+      id: newAgent.id
+    };
+    
+    setIsCreateAgentSidebarOpen(false);
   };
 
   // 处理智能体配置保存
@@ -600,6 +630,14 @@ export default function Home() {
         agent.id === updatedAgent.id ? updatedAgent : agent
       )
     );
+    
+    // 同时更新AGENT_CONFIGS对象，确保配置更改立即生效
+    AGENT_CONFIGS[updatedAgent.name] = {
+      apiKey: updatedAgent.apiKey || '',
+      name: updatedAgent.name,
+      color: updatedAgent.color,
+      id: updatedAgent.id
+    };
     
     console.log("保存智能体配置:", updatedAgent);
     setIsConfigSidebarOpen(false);
@@ -692,7 +730,7 @@ export default function Home() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
       <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
-        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} />
+        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} onAddAgent={handleAddAgent} />
         
         <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
           <ChatHeader agents={agents} />
@@ -721,6 +759,11 @@ export default function Home() {
         agent={selectedAgent}
         onClose={handleCloseConfigSidebar}
         onSave={handleAgentConfigSave}
+      />
+      <CreateAgentSidebar
+        isOpen={isCreateAgentSidebarOpen}
+        onClose={() => setIsCreateAgentSidebarOpen(false)}
+        onSave={handleCreateAgentSave}
       />
     </div>
   );

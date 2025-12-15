@@ -35,8 +35,6 @@ export interface FastGPTAgent {
   shareId?: string;
 }
 
-// 调度中心API密钥 - 已移至后端，此处仅作注释参考
-// const DISPATCH_CENTER_API_KEY = 'fastgpt-yo7VV9ZJkKBi22QL8DP4hW02PtNuDd0hUOW7H8F6Nf8Z4BqATYUosS8NUBZhNc';
 
 // 调度中心响应类型
 export interface DispatchCenterResponse {

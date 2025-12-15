@@ -17,9 +17,10 @@ interface DualSidebarProps {
   onNewChat: () => void;
   onChatSelect?: (chatId: string) => void;
   onAgentSelect: (agent: Agent) => void;
+  onAddAgent?: () => void;
 }
 
-export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect }: DualSidebarProps) {
+export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, onAddAgent }: DualSidebarProps) {
   const [activeView, setActiveView] = useState<'chats' | 'agents'>('chats');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,6 +67,7 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect }: 
         loading={loading}
         onChatSelect={handleChatSelect}
         onAgentSelect={onAgentSelect}
+        onAddAgent={onAddAgent}
       />
     </aside>
   );
