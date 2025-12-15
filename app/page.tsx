@@ -84,6 +84,34 @@ export default function Home() {
     }
   };
 
+  // 格式化日期显示文本的辅助函数
+  const formatDateText = (updatedAt: string) => {
+    const updatedDate = new Date(updatedAt);
+    const now = new Date();
+    
+    // 获取本地时间的日期部分（忽略时间），用于计算天数差异
+    const updatedDateOnly = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
+    const nowDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    // 计算天数差异（基于本地时间）
+    const diffTime = nowDateOnly.getTime() - updatedDateOnly.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    let dateText;
+    if (diffDays === 0) {
+      // 今天的聊天显示具体时间，如 "14:30"
+      dateText = updatedDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (diffDays === 1) {
+      dateText = '昨天';
+    } else if (diffDays <= 7) {
+      dateText = `${diffDays}天前`;
+    } else {
+      dateText = updatedDate.toLocaleDateString('zh-CN');
+    }
+    
+    return dateText;
+  };
+
   // 从数据库加载聊天记录
   const loadChatFromDatabase = async (chatId: string) => {
     try {
@@ -157,7 +185,7 @@ export default function Home() {
       
       if (response.ok) {
         const chatData = await response.json();
-        return chatData.id;
+        return chatData;
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to create new chat in database:', response.status, errorData.error || 'Unknown error');
@@ -187,17 +215,17 @@ export default function Home() {
           messageContent.substring(0, 20) + '...' : 
           messageContent;
         
-        const newChatId = await createNewChatInDatabase(chatTitle);
-        if (newChatId) {
-          currentChatId = newChatId;
+        const newChatData = await createNewChatInDatabase(chatTitle);
+        if (newChatData) {
+          currentChatId = newChatData.id;
           setChatId(currentChatId);
           const isNewChat = true;
           // 新聊天创建成功后，直接添加到侧边栏列表顶部，避免刷新动画
           if ((window as any).addChatItem) {
             const newChatItem = {
-              id: newChatId,
+              id: newChatData.id,
               title: chatTitle,
-              date: '今天',
+              date: formatDateText(newChatData.updatedAt),
               preview: messageContent.length > 50 ? messageContent.substring(0, 50) + '...' : messageContent
             };
             (window as any).addChatItem(newChatItem);
@@ -225,18 +253,20 @@ export default function Home() {
         
         // 保存消息到数据库
         if (currentChatId && !currentChatId.startsWith('temp_')) {
-          saveChatToDatabase(currentChatId, updatedMessages).then(() => {
+          saveChatToDatabase(currentChatId, updatedMessages).then((chatData) => {
             // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
-            if ((window as any).updateChatItem) {
+            if ((window as any).updateChatItem && chatData && chatData.updatedAt) {
               // 获取最后一条非用户消息作为预览
               const lastAgentMessage = updatedMessages.slice().reverse().find(msg => !msg.isUser);
               if (lastAgentMessage) {
                 const preview = lastAgentMessage.content.length > 50 ? 
                   lastAgentMessage.content.substring(0, 50) + '...' : 
                   lastAgentMessage.content;
+                
+                // 使用数据库返回的更新时间
                 (window as any).updateChatItem(currentChatId, { 
                   preview,
-                  date: '今天'
+                  date: formatDateText(chatData.updatedAt)
                 });
               }
             }
@@ -337,9 +367,9 @@ export default function Home() {
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               // 获取当前消息状态
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                saveChatToDatabase(currentChatId, currentMessages).then((chatData) => {
                   // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
-                  if ((window as any).updateChatItem) {
+                  if ((window as any).updateChatItem && chatData && chatData.updatedAt) {
                     // 获取最后一条非用户消息作为预览
                     const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
                     if (lastAgentMessage) {
@@ -347,9 +377,9 @@ export default function Home() {
                         lastAgentMessage.content.substring(0, 50) + '...' : 
                         lastAgentMessage.content;
                       (window as any).updateChatItem(currentChatId, { 
-                        preview,
-                        date: '今天'
-                      });
+                      preview,
+                      date: formatDateText(chatData.updatedAt)
+                    });
                     }
                   }
                 }).catch(error => {
@@ -398,9 +428,9 @@ export default function Home() {
             // 保存错误消息到数据库
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                saveChatToDatabase(currentChatId, currentMessages).then((chatData) => {
                   // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
-                  if ((window as any).updateChatItem) {
+                  if ((window as any).updateChatItem && chatData && chatData.updatedAt) {
                     // 获取最后一条非用户消息作为预览
                     const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
                     if (lastAgentMessage) {
@@ -408,9 +438,9 @@ export default function Home() {
                         lastAgentMessage.content.substring(0, 50) + '...' : 
                         lastAgentMessage.content;
                       (window as any).updateChatItem(currentChatId, { 
-                        preview,
-                        date: '今天'
-                      });
+                    preview,
+                    date: formatDateText(chatData.updatedAt)
+                  });
                     }
                   }
                 }).catch(error => {
@@ -499,9 +529,9 @@ export default function Home() {
             // 保存错误消息到数据库
             if (currentChatId && !currentChatId.startsWith('temp_')) {
               setMessages(currentMessages => {
-                saveChatToDatabase(currentChatId, currentMessages).then(() => {
+                saveChatToDatabase(currentChatId, currentMessages).then((chatData) => {
                   // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
-                  if ((window as any).updateChatItem) {
+                  if ((window as any).updateChatItem && chatData && chatData.updatedAt) {
                     // 获取最后一条非用户消息作为预览
                     const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
                     if (lastAgentMessage) {
@@ -509,9 +539,9 @@ export default function Home() {
                         lastAgentMessage.content.substring(0, 50) + '...' : 
                         lastAgentMessage.content;
                       (window as any).updateChatItem(currentChatId, { 
-                        preview,
-                        date: '今天'
-                      });
+                      preview,
+                      date: formatDateText(chatData.updatedAt)
+                    });
                     }
                   }
                 }).catch(error => {
@@ -636,9 +666,9 @@ export default function Home() {
     // 保存完整的聊天记录到数据库
     if (chatId && !chatId.startsWith('temp_')) {
       setMessages(currentMessages => {
-        saveChatToDatabase(chatId, currentMessages).then(() => {
+        saveChatToDatabase(chatId, currentMessages).then((chatData) => {
           // 消息保存成功后，更新侧边栏对应项的预览信息，避免刷新整个列表
-          if ((window as any).updateChatItem) {
+          if ((window as any).updateChatItem && chatData && chatData.updatedAt) {
             // 获取最后一条非用户消息作为预览
             const lastAgentMessage = currentMessages.slice().reverse().find(msg => !msg.isUser);
             if (lastAgentMessage) {
@@ -647,7 +677,7 @@ export default function Home() {
                 lastAgentMessage.content;
               (window as any).updateChatItem(chatId, { 
                 preview,
-                date: '今天'
+                date: formatDateText(chatData.updatedAt)
               });
             }
           }

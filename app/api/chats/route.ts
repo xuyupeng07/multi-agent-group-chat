@@ -22,27 +22,10 @@ export async function GET() {
           previewMessage.content 
         : '暂无消息';
       
-      // 格式化日期
-      const now = new Date();
-      const chatDate = new Date(chat.updatedAt);
-      const diffTime = Math.abs(now.getTime() - chatDate.getTime());
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-      let dateText;
-      if (diffDays === 0) {
-        dateText = '今天';
-      } else if (diffDays === 1) {
-        dateText = '昨天';
-      } else if (diffDays <= 7) {
-        dateText = `${diffDays}天前`;
-      } else {
-        dateText = chatDate.toLocaleDateString('zh-CN');
-      }
-      
       return {
         id: chat._id.toString(),
         title: chat.title,
-        date: dateText,
+        date: chat.updatedAt.toISOString(), // 返回ISO格式的时间戳，让客户端处理格式化
         preview
       };
     });
@@ -91,8 +74,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: newChat._id.toString(),
       title: newChat.title,
-      createdAt: newChat.createdAt,
-      updatedAt: newChat.updatedAt
+      createdAt: newChat.createdAt.toISOString(),
+      updatedAt: newChat.updatedAt.toISOString()
     });
   } catch (error) {
     console.error('Error creating chat:', error);
