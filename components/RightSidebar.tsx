@@ -140,16 +140,25 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
                       agent.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'
                     }`} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
-                      {agent.name}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {agent.role}
-                    </p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
-                      {agent.introduction || '暂无介绍'}
-                    </p>
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
+                        {agent.name}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {agent.role}
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+                        {agent.introduction || '暂无介绍'}
+                      </p>
+                    </div>
+                    {agent.name === '旅行管家' && (
+                      <span 
+                        className="rounded-full bg-blue-600/20 px-2.5 py-1 text-xs font-semibold leading-5 text-blue-600 sm:text-sm" 
+                      > 
+                        默认 
+                      </span>
+                    )}
                   </div>
                 </button>
               ))
