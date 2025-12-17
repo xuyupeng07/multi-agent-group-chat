@@ -30,6 +30,7 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
   const loadChatHistoryRef = useRef<(() => Promise<void>) | null>(null);
   const addChatItemRef = useRef<((chatItem: ChatHistoryItem) => void) | null>(null);
   const updateChatItemRef = useRef<((chatId: string, updates: Partial<ChatHistoryItem>) => void) | null>(null);
+  const removeChatItemRef = useRef<((chatId: string) => void) | null>(null);
   
   // 格式化日期显示文本的辅助函数
   const formatDateText = (updatedAt: string) => {
@@ -109,6 +110,11 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
     });
   };
   
+  // 移除聊天项
+  const removeChatItem = (chatId: string) => {
+    setChatHistory(prev => prev.filter(item => item.id !== chatId));
+  };
+  
   // 更新现有聊天项
   const updateChatItem = (chatId: string, updates: Partial<ChatHistoryItem>) => {
     setChatHistory(prev => 
@@ -130,6 +136,7 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
     loadChatHistoryRef.current = loadChatHistory;
     addChatItemRef.current = addChatItem;
     updateChatItemRef.current = updateChatItem;
+    removeChatItemRef.current = removeChatItem;
     // 初始加载
     loadChatHistory();
   }, []);
@@ -140,14 +147,18 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
     (window as any).refreshChatHistory = loadChatHistory;
     (window as any).addChatItem = addChatItem;
     (window as any).updateChatItem = updateChatItem;
+    (window as any).removeChatItem = removeChatItem;
+    (window as any).getChatHistory = () => chatHistory;
     
     // 清理函数
     return () => {
       delete (window as any).refreshChatHistory;
       delete (window as any).addChatItem;
       delete (window as any).updateChatItem;
+      delete (window as any).removeChatItem;
+      delete (window as any).getChatHistory;
     };
-  }, [loadChatHistory, addChatItem, updateChatItem]);
+  }, [loadChatHistory, addChatItem, updateChatItem, removeChatItem, chatHistory]);
   
   const handleChatSelect = (chatId: string) => {
     if (onChatSelect) {

@@ -22,7 +22,7 @@ export function MessageList({ messages, scrollAreaRef }: MessageListProps) {
                 输入消息，使用@智能体名称来指定智能体
               </p>
               <div className="flex flex-col gap-2 text-xs text-zinc-400">
-                <div className="mt-2 text-zinc-500">不指定智能体时，默认使用@旅行管家</div>
+                <div className="mt-2 text-zinc-500">在未指定智能体的情况下，调度中心将自动为您匹配最适合解答当前问题的智能体。</div>
               </div>
             </div>
           </div>

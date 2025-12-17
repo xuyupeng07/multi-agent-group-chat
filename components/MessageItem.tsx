@@ -106,10 +106,12 @@ export function MessageItem({ message }: MessageItemProps) {
       )}
 
       <div className={`flex flex-col max-w-[70%] ${message.isUser ? "items-end" : "items-start"}`}>
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className={`text-xs font-medium ${message.isUser ? "text-zinc-700 dark:text-zinc-300" : "text-zinc-900 dark:text-zinc-100"}`}>
-            {message.agentName}
-          </span>
+        <div className={`flex items-baseline gap-2 mb-1 ${message.isUser ? "justify-end" : "justify-start"}`}>
+          {!message.isUser && (
+            <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
+              {message.agentName}
+            </span>
+          )}
           <span className="text-[10px] text-zinc-400">
             {formatTime(message.timestamp)}
           </span>

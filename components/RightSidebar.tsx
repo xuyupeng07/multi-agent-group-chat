@@ -85,7 +85,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto mx-2 mt-4 space-y-2">
+      <div className="flex-1 overflow-y-auto mx-2 mt-4 space-y-2 scrollbar-hide">
         {activeView === 'chats' ? (
           // 聊天历史列表
           <div className="space-y-2">
@@ -174,44 +174,42 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
         )}
       </div>
       
-      {/* 用户组件 - 只在聊天记录视图中显示 */}
-      {activeView === 'chats' && (
-        <div className="w-full bg-white border-t border-slate-200 dark:border-slate-700">
-          <div className="w-full px-3 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex">
-                <div className="relative inline-flex">
-                  <span
-                    className="absolute bottom-0 right-0 h-3 w-3 rounded-full border bg-green-600 dark:border-slate-900 dark:bg-green-600"
-                  ></span>
-                  <img
-                    src="/fastgpt.png"
-                    alt="user"
-                    className="h-10 w-10 rounded-full bg-white border-2 border-slate-200 dark:border-slate-700"
-                  />
-                </div>
-                <div className="ml-3 flex flex-col justify-center">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
-                    John Doe
-                  </h3>
-                  <span className="text-xs text-slate-400">johndoe@gmail.com</span>
-                </div>
+      {/* 用户组件 - 在所有视图中都显示 */}
+      <div className="w-full bg-white border-t border-slate-200 dark:border-slate-700">
+        <div className="w-full px-3 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex">
+              <div className="relative inline-flex">
+                <span
+                  className="absolute bottom-0 right-0 h-3 w-3 rounded-full border bg-green-600 dark:border-slate-900 dark:bg-green-600"
+                ></span>
+                <img
+                  src="/fastgpt.png"
+                  alt="user"
+                  className="h-10 w-10 rounded-full bg-white border-2 border-slate-200 dark:border-slate-700"
+                />
               </div>
-              <span
-                className="rounded-full bg-green-600/10 px-2 py-0.5 text-xs font-semibold leading-4 text-green-600"
-              >
-                Free
-              </span>
+              <div className="ml-3 flex flex-col justify-center">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-200">
+                  John Doe
+                </h3>
+                <span className="text-xs text-slate-400">johndoe@gmail.com</span>
+              </div>
             </div>
-            <button
-              className="mt-4 w-full rounded-lg border border-slate-300 p-3 text-center text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-blue-600 hover:text-slate-50 focus:outline-none dark:border-slate-700 dark:text-slate-200"
-              type="button"
+            <span
+              className="rounded-full bg-green-600/10 px-2 py-0.5 text-xs font-semibold leading-4 text-green-600"
             >
-              ✨ 升级到专业版
-            </button>
+              Free
+            </span>
           </div>
+          <button
+            className="mt-4 mx-auto block w-8/12 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium py-2.5 px-4 shadow-sm hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            type="button"
+          >
+            ✨ 升级到专业版
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -100,7 +100,7 @@ export function Sidebar({ agents, onNewChat }: SidebarProps) {
       <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-indigo-600 text-white">ME</AvatarFallback>
+            <AvatarFallback className="bg-indigo-600 text-white">John Doe</AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">User</p>

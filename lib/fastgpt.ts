@@ -140,12 +140,6 @@ export async function callDispatchCenter(
 // 根据ID或名称获取智能体API密钥
 export async function getAgentApiKey(agentId?: string, agentName?: string): Promise<string | null> {
   try {
-    // 特殊处理：当ID为空且名称为旅行管家时，返回旅行管家的API密钥
-    if ((!agentId || agentId === '') && agentName === '旅行管家') {
-      console.log(`Using travel butler API key`);
-      return 'fastgpt-lAf0Gg6mtMaApu0gsA0vzK6nWEa8eD5gPMLVD1CdeD0ysIEtWLjBsPt';
-    }
-    
     // 确保最新的智能体配置已加载
     await loadAgentConfigs();
     
@@ -169,7 +163,17 @@ export async function getAgentApiKey(agentId?: string, agentName?: string): Prom
       return AGENT_CONFIGS[agentName].apiKey;
     }
     
-    console.log(`Agent not found. ID: ${agentId}, Name: ${agentName}`);
+    // 如果ID和名称都匹配失败，使用默认智能体ID: 6940567f484105cda2d631f5
+    console.log(`Agent not found. ID: ${agentId}, Name: ${agentName}. Using default agent ID: 6940567f484105cda2d631f5`);
+    for (const agentName in AGENT_CONFIGS) {
+      const config = AGENT_CONFIGS[agentName];
+      if (config.id === "6940567f484105cda2d631f5") {
+        console.log(`Found default agent by ID: 6940567f484105cda2d631f5, name: ${agentName}, API key: ${config.apiKey ? 'exists' : 'missing'}`);
+        return config.apiKey;
+      }
+    }
+    
+    console.log(`Default agent not found. ID: ${agentId}, Name: ${agentName}`);
     return null;
   } catch (error) {
     console.error('Error getting agent API key:', error);

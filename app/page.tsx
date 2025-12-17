@@ -1,14 +1,22 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { callFastGPT, FastGPTMessage, AGENT_CONFIGS, extractMentionedAgent, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
+import { callFastGPT, FastGPTMessage, extractMentionedAgent, loadAgentConfigs, callDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
 import { Message, Agent } from "@/types/chat";
+
+interface ChatHistoryItem {
+  id: string;
+  title: string;
+  date: string;
+  preview: string;
+}
 import { DualSidebar } from "@/components/DualSidebar";
 import { ChatHeader } from "@/components/ChatHeader";
 import { MessageList } from "@/components/MessageList";
 import { ChatInput } from "@/components/ChatInput";
 import { AgentConfigSidebar } from "@/components/AgentConfigSidebar";
 import { CreateAgentSidebar } from "@/components/CreateAgentSidebar";
+import { SuggestionBubbles } from "@/components/SuggestionBubbles";
 
 export default function Home() {
   // Static initial data to prevent hydration mismatch
@@ -209,8 +217,8 @@ export default function Home() {
       // 生成或使用现有的chatId
       let currentChatId = chatId;
       
-      if (!currentChatId) {
-        // 如果是新聊天，先在数据库中创建记录
+      if (!currentChatId || currentChatId === "newchat") {
+        // 如果是新聊天或临时新对话框，先在数据库中创建记录
         const chatTitle = messageContent.length > 20 ? 
           messageContent.substring(0, 20) + '...' : 
           messageContent;
@@ -220,6 +228,12 @@ export default function Home() {
           currentChatId = newChatData.id;
           setChatId(currentChatId);
           const isNewChat = true;
+          
+          // 如果是临时新对话框，先移除它
+          if (chatId === "newchat" && (window as any).removeChatItem) {
+            (window as any).removeChatItem("newchat");
+          }
+          
           // 新聊天创建成功后，直接添加到侧边栏列表顶部，避免刷新动画
           if ((window as any).addChatItem) {
             const newChatItem = {
@@ -241,7 +255,7 @@ export default function Home() {
       // 添加用户消息
       const userMessage: Message = {
         id: Date.now().toString(),
-        agentName: "Me",
+        agentName: "John Doe",
         agentColor: "bg-indigo-600",
         content: messageContent, // 使用包含@智能体的原始消息内容
         timestamp: new Date().toISOString(),
@@ -300,19 +314,19 @@ export default function Home() {
         console.log('Debug - mentionedAgent:', mentionedAgent);
         console.log('Debug - inputValue:', inputValue);
         console.log('Debug - messageContent:', messageContent);
-        console.log('Debug - available agents:', Object.keys(AGENT_CONFIGS));
+        console.log('Debug - available agents:', agents.map(a => a.name));
         
-        const agentConfig = AGENT_CONFIGS[mentionedAgent as keyof typeof AGENT_CONFIGS];
+        const agentConfig = agents.find(agent => agent.name === mentionedAgent);
         
         if (!agentConfig) {
           console.error("未找到智能体配置:", mentionedAgent);
-          console.error("可用的智能体配置:", Object.keys(AGENT_CONFIGS));
+          console.error("可用的智能体配置:", agents.map(a => a.name));
           // 显示错误消息给用户
           const errorMessage: Message = {
             id: (Date.now() + 1).toString(),
             agentName: "系统",
             agentColor: "bg-red-500",
-            content: `错误：未找到智能体配置 "${mentionedAgent}」。可用的智能体：${Object.keys(AGENT_CONFIGS).join('、')}`,
+            content: `错误：未找到智能体配置 "${mentionedAgent}」。可用的智能体：${agents.map(a => a.name).join('、')}`,
             timestamp: new Date().toISOString(),
             isUser: false,
           };
@@ -491,13 +505,36 @@ export default function Home() {
             throw new Error('调度中心返回的智能体列表格式错误');
           }
           
-          // 如果调度中心返回空数组，使用旅行管家
+          // 如果调度中心返回空数组，从数据库获取默认智能体
           if (!agentList || agentList.length === 0) {
-            console.log('Dispatch center returned empty list, using travel butler');
-            agentList = [{ 
-              id: '', // 空ID，将通过名称匹配
-              name: '旅行管家' 
-            }] as Array<{ id: string; name: string }>;
+            console.log('Dispatch center returned empty list, fetching default agent from database');
+            try {
+              // 获取默认智能体 (ID: 6940567f484105cda2d631f5)
+              const response = await fetch('/api/agents/default');
+              if (response.ok) {
+                const defaultAgent = await response.json();
+                agentList = [{ 
+                  id: defaultAgent.id,
+                  name: defaultAgent.name 
+                }] as Array<{ id: string; name: string }>;
+              } else {
+                throw new Error('Failed to fetch default agent');
+              }
+            } catch (error) {
+              console.error('Error fetching default agent:', error);
+              // 如果无法获取默认智能体，显示错误消息
+              const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                agentName: "系统",
+                agentColor: "bg-red-500",
+                content: "错误：无法获取默认智能体，请检查数据库配置",
+                timestamp: new Date().toISOString(),
+                isUser: false,
+              };
+              setMessages(prev => [...prev, errorMessage]);
+              setIsLoading(false);
+              return;
+            }
           }
           
           // 更新调度中心消息，显示选择的智能体
@@ -568,8 +605,20 @@ export default function Home() {
     const originalMessages = [...initialMessages];
     
     for (let i = 0; i < agentList.length; i++) {
-      const agentInfo = agentList[i];
-      console.log(`Calling agent ${i + 1}/${agentList.length}:`, agentInfo);
+      const agentListItem = agentList[i];
+      console.log(`Calling agent ${i + 1}/${agentList.length}:`, agentListItem);
+      
+      // 从agents状态中获取完整的智能体信息，包括颜色
+      const agentInfo = agents.find(agent => agent.name === agentListItem.name) || {
+        id: agentListItem.id,
+        name: agentListItem.name,
+        color: 'bg-blue-500', // 默认颜色
+        role: '',
+        introduction: '',
+        status: 'offline',
+        apiKey: '',
+        baseUrl: 'https://cloud.fastgpt.io/'
+      };
       
       // 获取智能体API密钥
       const apiKey = await getAgentApiKey(agentInfo.id, agentInfo.name);
@@ -596,7 +645,7 @@ export default function Home() {
       const agentMessage: Message = {
         id: agentMessageId,
         agentName: agentInfo.name,
-        agentColor: "bg-blue-500", // 默认颜色，可以根据需要从数据库获取
+        agentColor: agentInfo.color || "bg-blue-500", // 使用数据库中的颜色，如果没有则使用默认颜色
         content: "思考中......",
         timestamp: new Date().toISOString(),
         isUser: false,
@@ -696,6 +745,19 @@ export default function Home() {
 
   // 处理聊天选择
   const handleChatSelect = async (chatId: string) => {
+    // 如果选择的是新对话框，则清空消息并设置临时ID
+    if (chatId === "newchat") {
+      setMessages([]);
+      setChatId("newchat");
+      setCurrentStreamingMessageId(null);
+      setInputValue("");
+      // 聚焦输入框
+      setTimeout(() => {
+        chatInputRef.current?.focus();
+      }, 100);
+      return;
+    }
+    
     // 加载对应的聊天记录
     const success = await loadChatFromDatabase(chatId);
     if (!success) {
@@ -726,14 +788,6 @@ export default function Home() {
     // 添加新智能体到列表
     setAgents(prevAgents => [...prevAgents, newAgent]);
     
-    // 同时更新AGENT_CONFIGS对象，确保新创建的智能体可以被立即艾特
-    AGENT_CONFIGS[newAgent.name] = {
-      apiKey: newAgent.apiKey || '',
-      name: newAgent.name,
-      color: newAgent.color,
-      id: newAgent.id
-    };
-    
     setIsCreateAgentSidebarOpen(false);
   };
 
@@ -745,14 +799,6 @@ export default function Home() {
         agent.id === updatedAgent.id ? updatedAgent : agent
       )
     );
-    
-    // 同时更新AGENT_CONFIGS对象，确保配置更改立即生效
-    AGENT_CONFIGS[updatedAgent.name] = {
-      apiKey: updatedAgent.apiKey || '',
-      name: updatedAgent.name,
-      color: updatedAgent.color,
-      id: updatedAgent.id
-    };
     
     console.log("保存智能体配置:", updatedAgent);
     setIsConfigSidebarOpen(false);
@@ -768,9 +814,33 @@ export default function Home() {
   // 新建对话
   const handleNewChat = () => {
     setMessages([]);
-    setChatId(null);
+    setChatId("newchat"); // 使用固定的临时ID
     setCurrentStreamingMessageId(null);
     setInputValue("");
+    
+    // 检查是否已存在新对话框，避免重复创建
+    // 通过全局函数获取当前聊天历史并检查
+    let existingNewChat = false;
+    if ((window as any).getChatHistory) {
+      const currentChatHistory = (window as any).getChatHistory();
+      existingNewChat = currentChatHistory && currentChatHistory.find((item: ChatHistoryItem) => item.id === "newchat");
+    }
+    
+    if (!existingNewChat) {
+      // 在聊天记录中增加一个newchat的框
+      const newChatItem = {
+        id: "newchat", // 使用固定ID
+        title: "新对话",
+        date: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        preview: "开始新的对话..."
+      };
+      
+      // 通过全局函数添加新的聊天项
+      if ((window as any).addChatItem) {
+        (window as any).addChatItem(newChatItem);
+      }
+    }
+    
     // 新建对话后聚焦输入框
     setTimeout(() => {
       chatInputRef.current?.focus();
@@ -778,7 +848,7 @@ export default function Home() {
   };
   
   // 处理输入变化，检测@符号
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
     setInputValue(newValue);
     
@@ -795,7 +865,7 @@ export default function Home() {
         
         // 过滤智能体
         const searchTerm = afterAt.toLowerCase();
-        const filtered = agents.filter(agent => 
+        const filtered = agents.filter(agent =>
           agent.name.toLowerCase().includes(searchTerm)
         );
         setFilteredAgents(filtered);
@@ -807,6 +877,18 @@ export default function Home() {
       setShowAgentList(false);
       setMentionStartIndex(null);
     }
+  };
+  
+  // 处理提示气泡点击
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion);
+    // 聚焦输入框并将光标设置到文字末尾
+    setTimeout(() => {
+      if (chatInputRef.current) {
+        chatInputRef.current.focus();
+        chatInputRef.current.setCursorPosition(suggestion.length);
+      }
+    }, 100);
   };
   
   // 选择智能体
@@ -829,7 +911,7 @@ export default function Home() {
   };
   
   // 处理键盘事件
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Escape" && showAgentList) {
       setShowAgentList(false);
       setMentionStartIndex(null);
@@ -850,6 +932,7 @@ export default function Home() {
         <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
           <ChatHeader agents={agents} />
           <MessageList messages={messages} scrollAreaRef={scrollAreaRef} />
+          <SuggestionBubbles onSuggestionClick={handleSuggestionClick} />
           <ChatInput
             ref={chatInputRef}
             inputValue={inputValue}
