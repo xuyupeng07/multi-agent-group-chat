@@ -2,14 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Phone, Video, MoreVertical } from "lucide-react";
+import { Phone, Video, MoreVertical, MessageCircle } from "lucide-react";
 import { Agent } from "@/types/chat";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ChatHeaderProps {
   agents: Agent[];
+  isDiscussionMode?: boolean;
+  onDiscussionModeChange?: (enabled: boolean) => void;
+  discussionRounds?: number;
+  onDiscussionRoundsChange?: (rounds: number) => void;
 }
 
-export function ChatHeader({ agents }: ChatHeaderProps) {
+export function ChatHeader({ agents, isDiscussionMode = false, onDiscussionModeChange, discussionRounds = 3, onDiscussionRoundsChange }: ChatHeaderProps) {
   const [onlineAgentsCount, setOnlineAgentsCount] = useState<number>(0);
 
   // 从数据库获取在线智能体数量
@@ -50,6 +55,38 @@ export function ChatHeader({ agents }: ChatHeaderProps) {
       </div>
 
       <div className="flex items-center gap-1">
+        <Button 
+          variant={isDiscussionMode ? "default" : "ghost"} 
+          size="sm" 
+          className={`${isDiscussionMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-zinc-500"} mr-2`}
+          onClick={() => onDiscussionModeChange && onDiscussionModeChange(!isDiscussionMode)}
+        >
+          <MessageCircle className="h-4 w-4 mr-1.5" />
+          {isDiscussionMode ? "讨论中" : "开启讨论"}
+        </Button>
+        
+        {isDiscussionMode && (
+          <div className="flex items-center gap-2 mr-2">
+            <span className="text-sm text-zinc-600">讨论轮数:</span>
+            <Select value={discussionRounds.toString()} onValueChange={(value: string) => onDiscussionRoundsChange && onDiscussionRoundsChange(parseInt(value))}>
+              <SelectTrigger className="w-16 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+                <SelectItem value="4">4</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="6">6</SelectItem>
+                <SelectItem value="7">7</SelectItem>
+                <SelectItem value="8">8</SelectItem>
+                <SelectItem value="9">9</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
         <Button variant="ghost" size="icon" className="text-zinc-500">
           <Phone className="h-5 w-5" />
         </Button>

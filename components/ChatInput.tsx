@@ -1,6 +1,8 @@
 import { useRef, forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import { Agent } from "@/types/chat";
 import { AgentList } from "./AgentList";
+import { Button } from "@/components/ui/button";
+import { Pause, Play } from "lucide-react";
 
 interface ChatInputProps {
   inputValue: string;
@@ -9,6 +11,11 @@ interface ChatInputProps {
   showAgentList: boolean;
   filteredAgents: Agent[];
   mentionStartIndex: number | null;
+  isDiscussionMode?: boolean;
+  discussionPaused?: boolean;
+  discussionCompleted?: boolean;
+  onPauseDiscussion?: () => void;
+  onResumeDiscussion?: () => void;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onSend: () => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
@@ -26,6 +33,12 @@ export const ChatInput = forwardRef<{
   isComposing,
   showAgentList,
   filteredAgents,
+  mentionStartIndex,
+  isDiscussionMode = false,
+  discussionPaused = false,
+  discussionCompleted = false,
+  onPauseDiscussion,
+  onResumeDiscussion,
   onInputChange,
   onSend,
   onKeyDown,
@@ -240,6 +253,32 @@ export const ChatInput = forwardRef<{
 
   return (
     <div className="relative border-t border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md p-4">
+      {/* 讨论模式控制按钮 */}
+      {isDiscussionMode && (
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm text-zinc-600 dark:text-zinc-400">
+            讨论模式 {discussionCompleted ? "(已完成)" : discussionPaused ? "(已暂停)" : "(进行中)"}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={discussionPaused || discussionCompleted ? onResumeDiscussion : onPauseDiscussion}
+            className="flex items-center gap-2"
+          >
+            {discussionPaused || discussionCompleted ? (
+              <>
+                <Play className="h-4 w-4" />
+                继续讨论
+              </>
+            ) : (
+              <>
+                <Pause className="h-4 w-4" />
+                暂停讨论
+              </>
+            )}
+          </Button>
+        </div>
+      )}
       <form onSubmit={(e) => { e.preventDefault(); onSend(); }}>
         <label htmlFor="chat-input" className="sr-only">Enter your prompt</label>
         <div className="relative">

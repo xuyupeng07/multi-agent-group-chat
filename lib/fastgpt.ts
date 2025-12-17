@@ -137,6 +137,46 @@ export async function callDispatchCenter(
   }
 }
 
+// 调用讨论模式调度中心API - 使用不同的API密钥
+export async function callDiscussionDispatchCenter(
+  chatId: string,
+  messages: FastGPTMessage[],
+  signal?: AbortSignal
+): Promise<DispatchCenterResponse> {
+  try {
+    console.log('Calling Discussion Dispatch Center API with chatId:', chatId);
+    
+    const response = await fetch('/api/fastgpt/discussion-dispatch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chatId,
+        messages,
+      }),
+      signal, // 传递 AbortSignal
+    });
+
+    if (!response.ok) {
+      console.error('Discussion Dispatch Center API error response:', response.status, response.statusText);
+      throw new Error(`Discussion Dispatch Center API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data: DispatchCenterResponse = await response.json();
+    console.log('Discussion Dispatch Center API response received:', data);
+    return data;
+  } catch (error) {
+    // 如果是中止错误，不抛出异常
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('讨论调度中心请求被用户中止');
+      throw error;
+    }
+    console.error('Failed to call Discussion Dispatch Center API:', error);
+    throw error;
+  }
+}
+
 // 根据ID或名称获取智能体API密钥
 export async function getAgentApiKey(agentId?: string, agentName?: string): Promise<string | null> {
   try {
@@ -215,7 +255,8 @@ export async function callFastGPT(
   messages: FastGPTMessage[],
   onChunk: (chunk: string) => void,
   onComplete: () => void,
-  onError: (error: Error) => void
+  onError: (error: Error) => void,
+  signal?: AbortSignal
 ) {
   try {
     console.log('Calling FastGPT API with chatId:', chatId);
@@ -234,6 +275,7 @@ export async function callFastGPT(
         stream: true,
         messages,
       }),
+      signal, // 传递 AbortSignal
     });
 
     if (!response.ok) {
@@ -263,6 +305,12 @@ export async function callFastGPT(
     }
 
     while (true) {
+      // 检查是否已中止
+      if (signal?.aborted) {
+        console.log('请求已被中止');
+        return;
+      }
+      
       const { done, value } = await reader.read();
       
       if (done) {
@@ -303,6 +351,11 @@ export async function callFastGPT(
       }
     }
   } catch (error) {
+    // 如果是中止错误，不调用 onError
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('请求被用户中止');
+      return;
+    }
     onError(error as Error);
   }
 }

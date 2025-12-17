@@ -53,6 +53,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`Calling FastGPT API for agent: ${agentName || agentId}, chatId: ${chatId}`);
 
+    // 打印curl命令用于调试
+    const curlCommand = `curl -X POST "${FASTGPT_API_URL}" \\
+  -H "Authorization: Bearer ${apiKey.substring(0, 10)}..." \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(fastGPTRequest)}'`;
+    
+    console.log('=== FastGPT API Curl Command ===');
+    console.log(curlCommand);
+    console.log('================================');
+
     // 调用FastGPT API
     const response = await fetch(FASTGPT_API_URL, {
       method: 'POST',
@@ -99,16 +109,42 @@ export async function POST(request: NextRequest) {
               const { done, value } = await reader.read();
               
               if (done) {
-                controller.close();
+                try {
+                  controller.close();
+                } catch (e) {
+                  // 控制器可能已经关闭，忽略错误
+                  console.log('Controller already closed, ignoring...');
+                }
                 break;
               }
 
               const chunk = new TextDecoder().decode(value);
-              controller.enqueue(encoder.encode(chunk));
+              try {
+                controller.enqueue(encoder.encode(chunk));
+              } catch (e) {
+                // 控制器可能已经关闭，忽略错误
+                console.log('Controller enqueue failed, stream may be aborted:', e);
+                break;
+              }
             }
           } catch (error) {
+            // 如果是中止错误，不记录为错误
+            if (error instanceof Error && error.name === 'AbortError') {
+              console.log('Stream was aborted by client');
+              try {
+                controller.close();
+              } catch (e) {
+                // 控制器可能已经关闭，忽略错误
+              }
+              return;
+            }
+            
             console.error('Stream processing error:', error);
-            controller.error(error);
+            try {
+              controller.error(error);
+            } catch (e) {
+              // 控制器可能已经关闭，忽略错误
+            }
           }
         },
       });
