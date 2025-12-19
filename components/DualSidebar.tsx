@@ -21,9 +21,10 @@ interface DualSidebarProps {
   onAddAgent?: () => void;
   onGroupSelect?: (group: GroupChat) => void;
   onStartSingleGroupChat?: (group: GroupChat) => void;
+  onBackToChat?: () => void;
 }
 
-export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, onAddAgent, onGroupSelect, onStartSingleGroupChat }: DualSidebarProps) {
+export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, onAddAgent, onGroupSelect, onStartSingleGroupChat, onBackToChat }: DualSidebarProps) {
   const [activeView, setActiveView] = useState<'chats' | 'agents' | 'groups'>('chats');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,6 +176,7 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
         activeView={activeView}
         onViewChange={setActiveView}
         onNewChat={onNewChat}
+        onBackToChat={onBackToChat}
       />
       {activeView === 'groups' ? (
         <GroupChatManager onGroupSelect={onGroupSelect} onStartSingleGroupChat={onStartSingleGroupChat} />

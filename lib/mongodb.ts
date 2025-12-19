@@ -17,6 +17,10 @@ if (mongoose.models.GroupChat) {
   delete mongoose.models.GroupChat;
 }
 
+if (mongoose.models.GroupMessage) {
+  delete mongoose.models.GroupMessage;
+}
+
 // 重新定义智能体模式
 const agentSchema = new mongoose.Schema({
   name: {
@@ -140,10 +144,55 @@ const groupChatSchema = new mongoose.Schema({
   }
 });
 
-// 创建消息、聊天和群聊模型
+// 定义群聊消息模式
+const groupMessageSchema = new mongoose.Schema({
+  groupId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GroupChat',
+    required: true,
+    index: true // 添加索引以优化查询性能
+  },
+  messageId: {
+    type: String,
+    required: true,
+    unique: true // 确保消息ID唯一
+  },
+  agentName: {
+    type: String,
+    required: true
+  },
+  agentColor: {
+    type: String,
+    required: true
+  },
+  content: {
+    type: String,
+    required: true
+  },
+  timestamp: {
+    type: Date,
+    default: Date.now,
+    index: true // 添加索引以优化时间排序查询
+  },
+  isUser: {
+    type: Boolean,
+    required: true
+  },
+  discussionMode: {
+    type: Boolean,
+    default: false // 标记是否为讨论模式的回复
+  },
+  roundNumber: {
+    type: Number,
+    default: 0 // 讨论模式的轮次编号
+  }
+});
+
+// 创建消息、聊天、群聊和群聊消息模型
 const Message = mongoose.model('Message', messageSchema);
 const Chat = mongoose.model('Chat', chatSchema);
 const GroupChat = mongoose.model('GroupChat', groupChatSchema);
+const GroupMessage = mongoose.model('GroupMessage', groupMessageSchema);
 
 // 连接MongoDB数据库
 async function connectMongoDB() {
@@ -169,4 +218,4 @@ async function connectMongoDB() {
   }
 }
 
-export { connectMongoDB, Agent, Chat, Message, GroupChat };
+export { connectMongoDB, Agent, Chat, Message, GroupChat, GroupMessage };

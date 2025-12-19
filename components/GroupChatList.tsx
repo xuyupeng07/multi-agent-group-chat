@@ -138,7 +138,7 @@ export function GroupChatList({ onSelectGroup, onCreateNewGroup, selectedGroupId
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarImage src={group.avatar} alt={group.name} />
+                    {group.avatar && group.avatar.trim() ? <AvatarImage src={group.avatar} alt={group.name} /> : null}
                     <AvatarFallback className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
                       <Users className="h-4 w-4" />
                     </AvatarFallback>
@@ -170,9 +170,9 @@ export function GroupChatList({ onSelectGroup, onCreateNewGroup, selectedGroupId
                             
                             return (
                               <Avatar key={`${group.id}-agent-${agent.id || `agent-${index}`}`} className="h-4 w-4 border border-white dark:border-slate-800">
-                                <AvatarImage src={agent.avatar} alt={agent.name} />
-                                <AvatarFallback 
-                                  className="text-xs" 
+                                {agent.avatar && agent.avatar.trim() ? <AvatarImage src={agent.avatar} alt={agent.name} /> : null}
+                                <AvatarFallback
+                                  className="text-xs"
                                   style={{ backgroundColor: agent.color }}
                                 >
                                   {agent.name?.charAt(0).toUpperCase()}

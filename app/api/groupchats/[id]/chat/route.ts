@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectMongoDB, GroupChat, Agent } from '@/lib/mongodb';
+import { connectMongoDB, GroupChat, Agent, GroupMessage } from '@/lib/mongodb';
 import { callDiscussionDispatchCenter, getAgentApiKey, FastGPTMessage } from '@/lib/fastgpt';
+
+// 保存群聊消息到数据库的辅助函数
+async function saveGroupMessage(
+  groupId: string,
+  messageId: string,
+  agentName: string,
+  agentColor: string,
+  content: string,
+  isUser: boolean,
+  discussionMode: boolean = false,
+  roundNumber: number = 0
+) {
+  try {
+    const newMessage = new GroupMessage({
+      groupId,
+      messageId,
+      agentName,
+      agentColor,
+      content,
+      timestamp: new Date(),
+      isUser,
+      discussionMode,
+      roundNumber
+    });
+
+    await newMessage.save();
+    console.log(`Message saved to database: ${messageId} from ${agentName}`);
+    return true;
+  } catch (error) {
+    console.error('Error saving group message:', error);
+    return false;
+  }
+}
 
 // 发送群聊消息
 export async function POST(
@@ -31,13 +64,36 @@ export async function POST(
   try {
     const { id } = await params;
     const { message, agentIds, discuss = false } = await request.json();
-    
+
     if (!message || !message.trim()) {
       return NextResponse.json(
         { success: false, error: '消息内容不能为空' },
         { status: 400 }
       );
     }
+
+    // 创建用户消息对象，用于立即返回
+    const userMessageId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const userMessage = {
+      id: userMessageId,
+      agentName: '用户',
+      agentColor: '#3b82f6',
+      content: message,
+      timestamp: new Date().toISOString(),
+      isUser: true
+    };
+
+    // 异步保存用户消息到数据库
+    saveGroupMessage(
+      id,
+      userMessageId,
+      '用户',
+      '#3b82f6',
+      message,
+      true
+    ).catch(error => {
+      console.error('Failed to save user message:', error);
+    });
     
     // 使用重试机制处理并发查询
     let retryCount = 0;
@@ -138,62 +194,107 @@ export async function POST(
                   });
                 }
                 
-                // 非讨论模式，为每个智能体调用聊天API
-                const agentPromises = agentList.map(async (agentInfo: { id: string; name: string }) => {
-                  try {
-                    console.log('Processing agent:', agentInfo);
-                    // 获取智能体API密钥
-                    const agentApiKey = await getAgentApiKey(agentInfo.id, agentInfo.name);
-                    
-                    if (!agentApiKey) {
-                      console.error(`No API key found for agent: ${agentInfo.name}`);
+                // 创建"思考中"消息供前端立即显示
+                const thinkingMessages = agentList.map((agentInfo: { id: string; name: string }) => {
+                  const agent = groupAgents.find(a => a.name === agentInfo.name);
+                  const messageId = `thinking_${Date.now()}_${agentInfo.name.replace(/\s+/g, '_')}`;
+
+                  return {
+                    id: messageId,
+                    agentName: agentInfo.name,
+                    agentColor: agent?.color || '#6366f1',
+                    content: "思考中......",
+                    timestamp: new Date().toISOString(),
+                    isUser: false,
+                    isThinking: true
+                  };
+                });
+
+                // 立即返回用户消息和思考中的智能体消息
+                const initialMessages = [userMessage, ...thinkingMessages];
+
+                // 异步处理智能体回复
+                const processAgentResponses = async () => {
+                  const agentPromises = agentList.map(async (agentInfo: { id: string; name: string }) => {
+                    try {
+                      console.log('Processing agent:', agentInfo);
+                      // 获取智能体API密钥
+                      const agentApiKey = await getAgentApiKey(agentInfo.id, agentInfo.name);
+
+                      if (!agentApiKey) {
+                        console.error(`No API key found for agent: ${agentInfo.name}`);
+                        return {
+                          agentName: agentInfo.name,
+                          content: `${agentInfo.name}暂无回复 - API密钥未找到`
+                        };
+                      }
+
+                      // 调用智能体聊天API - 直接调用FastGPT API
+                      const FASTGPT_API_URL = 'https://cloud.fastgpt.io/api/v1/chat/completions';
+                      const response = await fetch(FASTGPT_API_URL, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${agentApiKey}`,
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                          chatId: `groupchat_${groupChat._id.toString()}`,
+                          stream: false,
+                          messages,
+                        }),
+                      });
+
+                      if (!response.ok) {
+                        throw new Error(`Agent API error: ${response.status} ${response.statusText}`);
+                      }
+
+                      const data = await response.json();
+                      const agentResponse = data.choices?.[0]?.message?.content || `${agentInfo.name}暂无回复`;
+
+                      // 返回智能体回复
                       return {
                         agentName: agentInfo.name,
-                        content: `${agentInfo.name}暂无回复 - API密钥未找到`
+                        content: agentResponse
+                      };
+                    } catch (error) {
+                      console.error(`Error getting response from agent ${agentInfo.name}:`, error);
+                      return {
+                        agentName: agentInfo.name,
+                        content: `${agentInfo.name}回复出错: ${error instanceof Error ? error.message : '未知错误'}`
                       };
                     }
-                    
-                    // 调用智能体聊天API - 直接调用FastGPT API
-                    const FASTGPT_API_URL = 'https://cloud.fastgpt.io/api/v1/chat/completions';
-                    const response = await fetch(FASTGPT_API_URL, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${agentApiKey}`,
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        chatId: `groupchat_${groupChat._id.toString()}`,
-                        stream: false,
-                        messages,
-                      }),
+                  });
+
+                  // 等待所有智能体回复
+                  const agentResults = await Promise.all(agentPromises);
+
+                  // 保存智能体回复到数据库
+                  for (const result of agentResults) {
+                    const agent = groupAgents.find(a => a.name === result.agentName);
+                    const messageId = `agent_${Date.now()}_${result.agentName.replace(/\s+/g, '_')}`;
+
+                    saveGroupMessage(
+                      groupChat._id.toString(),
+                      messageId,
+                      result.agentName,
+                      agent?.color || '#6366f1',
+                      result.content,
+                      false
+                    ).catch(error => {
+                      console.error('Failed to save agent message:', error);
                     });
-                    
-                    if (!response.ok) {
-                      throw new Error(`Agent API error: ${response.status} ${response.statusText}`);
-                    }
-                    
-                    const data = await response.json();
-                    const agentResponse = data.choices?.[0]?.message?.content || `${agentInfo.name}暂无回复`;
-                    
-                    // 返回智能体回复
-                    return {
-                      agentName: agentInfo.name,
-                      content: agentResponse
-                    };
-                  } catch (error) {
-                    console.error(`Error getting response from agent ${agentInfo.name}:`, error);
-                    return {
-                      agentName: agentInfo.name,
-                      content: `${agentInfo.name}回复出错: ${error instanceof Error ? error.message : '未知错误'}`
-                    };
                   }
+                };
+
+                // 启动异步处理，但不等待
+                processAgentResponses().catch(error => {
+                  console.error('Error processing agent responses:', error);
                 });
-                
-                // 等待所有智能体回复
-                const agentResults = await Promise.all(agentPromises);
-                
-                // 过滤掉null结果
-                agentResponses = agentResults.filter(result => result !== null) as Array<{agentName: string, content: string}>;
+
+                agentResponses = agentList.map(agentInfo => ({
+                  agentName: agentInfo.name,
+                  content: "思考中......"
+                }));
               } else {
                 // 如果调度中心返回空列表，使用默认智能体
                 console.log('Dispatch center returned empty list, using default agent');
@@ -254,39 +355,109 @@ export async function POST(
             }];
           }
           
-          // 格式化返回的消息
-          const formattedMessages = agentResponses.map((response, index) => {
-            // 查找对应的智能体信息
-            const agent = groupAgents.find(a => a.name === response.agentName);
-            return {
-              id: `${Date.now()}_${index}`,
-              agentName: response.agentName,
-              agentColor: agent?.color || '#6366f1',
-              content: response.content,
-              timestamp: new Date().toISOString(),
-              isUser: false
-            };
-          });
-          
+          // 处理已格式化的智能体消息
+          let formattedMessages: any[] = [];
+
+          // 如果有思考中的消息，使用它们
+          if (agentResponses.some(r => r.content === "思考中......")) {
+            // 保存用户消息到数据库
+            saveGroupMessage(
+              id,
+              userMessage.id,
+              userMessage.agentName,
+              userMessage.agentColor,
+              userMessage.content,
+              true
+            ).catch(error => {
+              console.error('Failed to save user message:', error);
+            });
+
+            // 返回包含思考状态的初始消息
+            formattedMessages = agentResponses.map((response, index) => {
+              const agent = groupAgents.find(a => a.name === response.agentName);
+              const messageId = `thinking_${Date.now()}_${response.agentName.replace(/\s+/g, '_')}`;
+
+              return {
+                id: messageId,
+                agentName: response.agentName,
+                agentColor: agent?.color || '#6366f1',
+                content: response.content,
+                timestamp: new Date().toISOString(),
+                isUser: false,
+                isThinking: true
+              };
+            });
+          } else {
+            // 正常的格式化流程
+            formattedMessages = agentResponses.map((response, index) => {
+              const agent = groupAgents.find(a => a.name === response.agentName);
+              const messageId = `agent_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+
+              // 异步保存智能体回复消息到数据库
+              saveGroupMessage(
+                groupChat._id.toString(),
+                messageId,
+                response.agentName,
+                agent?.color || '#6366f1',
+                response.content,
+                false,
+                discuss // 标记是否为讨论模式
+              ).catch(error => {
+                console.error('Failed to save agent message:', error);
+              });
+
+              return {
+                id: messageId,
+                agentName: response.agentName,
+                agentColor: agent?.color || '#6366f1',
+                content: response.content,
+                timestamp: new Date().toISOString(),
+                isUser: false
+              };
+            });
+          }
+
+          // 立即返回消息
+          const allMessages = [userMessage, ...formattedMessages];
+
           return NextResponse.json({
             success: true,
-            messages: formattedMessages
+            messages: allMessages,
+            immediate: true,
+            hasThinking: agentResponses.some(r => r.content === "思考中......")
           });
         } else {
           // 如果调度中心调用失败，返回模拟消息
           const randomAgent = groupAgents[Math.floor(Math.random() * groupAgents.length)];
+          const mockMessageId = `mock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           const mockMessage = {
-            id: `${Date.now()}_0`,
+            id: mockMessageId,
             agentName: randomAgent.name,
             agentColor: randomAgent.color,
             content: `这是${randomAgent.name}的回复。群聊功能正在开发中，敬请期待！`,
             timestamp: new Date().toISOString(),
             isUser: false
           };
-          
+
+          // 异步保存模拟消息
+          saveGroupMessage(
+            groupChat._id.toString(),
+            mockMessageId,
+            randomAgent.name,
+            randomAgent.color,
+            mockMessage.content,
+            false
+          ).catch(error => {
+            console.error('Failed to save mock message:', error);
+          });
+
+          // 立即返回用户消息和模拟回复
+          const newMessages = [userMessage, mockMessage];
+
           return NextResponse.json({
             success: true,
-            messages: [mockMessage]
+            messages: newMessages,
+            immediate: true // 标识这是即时返回的新消息
           });
         }
       } catch (queryError) {
@@ -372,11 +543,23 @@ export async function GET(
           );
         }
         
-        // 这里应该从消息数据库中获取历史消息
-        // 目前返回空数组，因为消息存储功能尚未实现
+        // 从群聊消息数据库中获取历史消息
+        const messages = await GroupMessage.find({ groupId: groupChat._id })
+          .sort({ timestamp: 1 }) // 按时间升序排列
+          .lean(); // 使用lean()提高查询性能
+
         return NextResponse.json({
           success: true,
-          messages: []
+          messages: messages.map(msg => ({
+            id: msg.messageId,
+            agentName: msg.agentName,
+            agentColor: msg.agentColor,
+            content: msg.content,
+            timestamp: msg.timestamp.toISOString(),
+            isUser: msg.isUser,
+            discussionMode: msg.discussionMode,
+            roundNumber: msg.roundNumber
+          }))
         });
       } catch (queryError) {
         console.error(`Query attempt ${retryCount + 1} failed:`, queryError);

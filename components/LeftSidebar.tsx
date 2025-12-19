@@ -7,9 +7,10 @@ interface LeftSidebarProps {
   onViewChange: (view: 'chats' | 'agents' | 'groups') => void;
   onNewChat: () => void;
   onNewGroup?: () => void;
+  onBackToChat?: () => void;
 }
 
-export function LeftSidebar({ activeView, onViewChange, onNewChat, onNewGroup }: LeftSidebarProps) {
+export function LeftSidebar({ activeView, onViewChange, onNewChat, onNewGroup, onBackToChat }: LeftSidebarProps) {
   return (
     <div className="flex h-screen w-12 flex-col items-center space-y-8 border-r border-slate-300 bg-slate-50 py-8 dark:border-slate-700 dark:bg-slate-900 sm:w-16">
       {/* Logo */}
@@ -30,10 +31,13 @@ export function LeftSidebar({ activeView, onViewChange, onNewChat, onNewGroup }:
       
       {/* Conversations */}
       <button
-        onClick={() => onViewChange('chats')}
+        onClick={() => {
+          onViewChange('chats');
+          onBackToChat?.();
+        }}
         className={`rounded-lg p-1.5 transition-colors duration-200 ${
-          activeView === 'chats' 
-            ? 'bg-blue-100 text-blue-600 dark:bg-slate-800 dark:text-blue-600' 
+          activeView === 'chats'
+            ? 'bg-blue-100 text-blue-600 dark:bg-slate-800 dark:text-blue-600'
             : 'text-slate-500 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800'
         }`}
         title="聊天记录"

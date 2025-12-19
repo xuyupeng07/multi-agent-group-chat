@@ -247,20 +247,11 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => onStartChat(group)}
-          className="flex-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-200"
-        >
-          <MessageSquare className="h-4 w-4 mr-1" />
-          <span className="text-xs">开始聊天</span>
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
           onClick={() => setShowAddAgentModal(true)}
-          className="flex-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors duration-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+          className="w-full rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors duration-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
         >
           <Plus className="h-4 w-4 mr-1" />
-          <span className="text-xs">添加</span>
+          <span className="text-xs">添加智能体</span>
         </Button>
       </div>
 
@@ -290,8 +281,10 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarImage src={agent.avatar} alt={agent.name} />
-                    <AvatarFallback 
+                    {agent.avatar && agent.avatar.trim() ? (
+                      <AvatarImage src={agent.avatar} alt={agent.name} />
+                    ) : null}
+                    <AvatarFallback
                       className="text-xs"
                       style={{ backgroundColor: agent.color }}
                     >
@@ -356,12 +349,17 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
         </Button>
       </div>
 
-      {/* 添加智能体弹窗 */}
+      {/* 添加智能体右侧边栏 */}
       {showAddAgentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div className="fixed inset-0 z-50 pointer-events-none">
+          {/* 右侧边栏 */}
+          <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto">
+            {/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">添加智能体到群聊</h2>
+              <div className="flex items-center gap-2">
+                <Plus className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">添加智能体到群聊</h2>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -377,20 +375,22 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
               </Button>
             </div>
 
-            <div className="p-4">
-              <div className="space-y-2 max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-600 rounded-md p-2">
+            {/* 智能体列表 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-2">
                 {availableAgents.length === 0 ? (
-                  <div className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-center py-8 text-sm text-slate-500 dark:text-slate-400">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
                     没有可添加的智能体
                   </div>
                 ) : (
                   availableAgents.map((agent) => (
                     <div
                       key={agent.id}
-                      className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
                         selectedAgentIds.includes(agent.id)
-                          ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-700'
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-700 border-2 border-transparent'
                       }`}
                       onClick={() => {
                         setSelectedAgentIds(prev => {
@@ -402,11 +402,13 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
                         });
                       }}
                     >
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={agent.avatar} alt={agent.name} />
-                        <AvatarFallback 
+                      <Avatar className="h-10 w-10 flex-shrink-0">
+                        {agent.avatar && agent.avatar.trim() ? (
+                          <AvatarImage src={agent.avatar} alt={agent.name} />
+                        ) : null}
+                        <AvatarFallback
                           style={{ backgroundColor: agent.color }}
-                          className="text-white text-xs"
+                          className="text-white text-sm"
                         >
                           {agent.name?.charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -418,10 +420,15 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
                         <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
                           {agent.role}
                         </div>
+                        {agent.introduction && (
+                          <div className="text-xs text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">
+                            {agent.introduction}
+                          </div>
+                        )}
                       </div>
                       {selectedAgentIds.includes(agent.id) && (
-                        <div className="h-5 w-5 rounded-full bg-blue-500 flex items-center justify-center">
-                          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                          <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         </div>
@@ -432,22 +439,32 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 dark:border-slate-700">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowAddAgentModal(false);
-                  setSelectedAgentIds([]);
-                }}
-              >
-                取消
-              </Button>
-              <Button
-                onClick={handleAddAgents}
-                disabled={selectedAgentIds.length === 0}
-              >
-                添加 {selectedAgentIds.length > 0 && `(${selectedAgentIds.length})`}
-              </Button>
+            {/* 底部操作栏 */}
+            <div className="border-t border-slate-200 dark:border-slate-700 p-4">
+              {selectedAgentIds.length > 0 && (
+                <div className="mb-3 text-sm text-slate-600 dark:text-slate-400">
+                  已选择 {selectedAgentIds.length} 个智能体
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddAgentModal(false);
+                    setSelectedAgentIds([]);
+                  }}
+                  className="flex-1"
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={handleAddAgents}
+                  disabled={selectedAgentIds.length === 0}
+                  className="flex-1"
+                >
+                  添加 {selectedAgentIds.length > 0 && `(${selectedAgentIds.length})`}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

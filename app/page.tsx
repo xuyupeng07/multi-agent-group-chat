@@ -1715,6 +1715,19 @@ export default function Home() {
   const handleBackToChat = () => {
     setCurrentView('chat');
     setSelectedGroup(null);
+
+    // 重置所有讨论状态，防止切换后状态残留
+    setDiscussionStates({});
+
+    // 重置加载状态和流式消息ID
+    setIsLoading(false);
+    setCurrentStreamingMessageId(null);
+
+    // 中止任何正在进行的讨论
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
   };
   
   // 处理显示群聊详情
@@ -1746,20 +1759,30 @@ export default function Home() {
       <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
         <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
           <AgentListErrorBoundary>
-            <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} onAddAgent={handleAddAgent} onGroupSelect={handleGroupSelect} onStartSingleGroupChat={handleSingleGroupChat} />
+            <DualSidebar
+              agents={agents}
+              onNewChat={handleNewChat}
+              onChatSelect={handleChatSelect}
+              onAgentSelect={handleAgentSelect}
+              onAddAgent={handleAddAgent}
+              onGroupSelect={handleGroupSelect}
+              onStartSingleGroupChat={handleSingleGroupChat}
+              onBackToChat={handleBackToChat}
+            />
           </AgentListErrorBoundary>
           
           <ChatErrorBoundary>
             {currentView === 'group' ? (
               <GroupChatInterface
+                key="group-chat-interface"
                 group={selectedGroup}
                 agents={agents}
                 onBack={handleBackToChat}
                 onShowGroupDetail={handleShowGroupDetail}
-                onShowGroupList={() => {}}
               />
             ) : currentView === 'singleGroup' && selectedGroup ? (
               <SingleGroupChat
+                key="single-group-chat"
                 group={selectedGroup}
                 agents={agents}
                 onBack={handleBackToChat}

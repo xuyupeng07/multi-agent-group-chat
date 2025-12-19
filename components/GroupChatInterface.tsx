@@ -8,25 +8,22 @@ import { ChatInput } from "./ChatInput";
 import { SuggestionBubbles } from "./SuggestionBubbles";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { ArrowLeft, Users, Plus, Settings, MessageSquare, MessageSquareOff } from "lucide-react";
+import { Users, Plus, Settings, MessageSquare, MessageSquareOff, Phone, Video } from "lucide-react";
 import { GroupChatDetail } from "./GroupChatDetail";
-import { GroupChatList } from "./GroupChatList";
-import { callFastGPT, FastGPTMessage, getAgentApiKey } from "@/lib/fastgpt";
+import { callFastGPT, FastGPTMessage, getAgentApiKey, callDiscussionDispatchCenter } from "@/lib/fastgpt";
 
 interface GroupChatInterfaceProps {
   group: GroupChat | null;
   agents: Agent[];
   onBack: () => void;
   onShowGroupDetail: (group: GroupChat) => void;
-  onShowGroupList: () => void;
 }
 
-export function GroupChatInterface({ 
-  group, 
-  agents, 
-  onBack, 
-  onShowGroupDetail,
-  onShowGroupList 
+export function GroupChatInterface({
+  group,
+  agents,
+  onBack,
+  onShowGroupDetail
 }: GroupChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -35,7 +32,7 @@ export function GroupChatInterface({
   const [mentionStartIndex, setMentionStartIndex] = useState<number | null>(null);
   const [filteredAgents, setFilteredAgents] = useState<Agent[]>([]);
   const [isComposing, setIsComposing] = useState(false);
-  const [showGroupSidebar, setShowGroupSidebar] = useState<'list' | 'detail' | null>(null);
+  const [showGroupSidebar, setShowGroupSidebar] = useState<'detail' | null>(null);
   
   // 讨论状态管理
   const [isDiscussionMode, setIsDiscussionMode] = useState(false);
@@ -88,6 +85,55 @@ export function GroupChatInterface({
       }
     }
   }, [messages]);
+
+  // 清理effect - 组件卸载时重置状态
+  useEffect(() => {
+    return () => {
+      // 组件卸载时重置所有状态
+      setShowGroupSidebar(null);
+      setIsLoading(false);
+      setCurrentStreamingMessageId(null);
+    };
+  }, []);
+
+  // Load chat history when group changes
+  useEffect(() => {
+    if (!group) return;
+
+    const loadChatHistory = async () => {
+      try {
+        const response = await fetch(`/api/groupchats/${group.id}/chat`);
+
+        if (!response.ok) {
+          throw new Error(`加载历史消息失败: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.messages && Array.isArray(data.messages)) {
+          const historyMessages: Message[] = data.messages.map((msg: any) => ({
+            id: msg.id,
+            agentName: msg.agentName,
+            agentColor: msg.agentColor,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            isUser: msg.isUser,
+          }));
+
+          setMessages(historyMessages);
+        } else {
+          console.warn('API返回的历史消息格式不正确');
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('加载历史消息失败:', error);
+        // 如果加载失败，从空的消息开始
+        setMessages([]);
+      }
+    };
+
+    loadChatHistory();
+  }, [group]);
 
   // 处理输入变化，检测@符号
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -344,7 +390,7 @@ export function GroupChatInterface({
             callFastGPT(
               agentConfig.id,
               agentConfig.name,
-              `groupchat_${group?.id}`,
+              group?.id || '',
               formattedMessages,
               (chunk: string) => {
                 // 在每次接收到chunk时检查暂停状态
@@ -496,69 +542,329 @@ export function GroupChatInterface({
   // 处理发送消息
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading || !group) return;
-    
-    // 添加用户消息
+
+    const messageContent = inputValue;
+    const groupAgents = getGroupAgents();
+
+    // 立即显示用户消息
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       agentName: "用户",
-      agentColor: "bg-indigo-600",
-      content: inputValue,
+      agentColor: "#3b82f6",
+      content: messageContent,
       timestamp: new Date().toISOString(),
       isUser: true,
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
-    
-    try {
-      // 调用群聊API
-      const response = await fetch(`/api/groupchats/${group.id}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: inputValue,
-          agentIds: getGroupAgents().map(agent => agent.id),
-          discuss: isDiscussionMode
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API错误: ${response.status} ${response.statusText}`);
+
+    // 准备调用FastGPT的消息格式
+    const fastGPTMessages: FastGPTMessage[] = [
+      {
+        role: 'user',
+        content: messageContent
       }
-      
-      const data = await response.json();
-      
-      if (data.success && data.messages && Array.isArray(data.messages)) {
-        // 添加智能体回复消息
-        const agentMessages: Message[] = data.messages.map((msg: any) => ({
-          id: msg.id,
-          agentName: msg.agentName,
-          agentColor: msg.agentColor,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          isUser: false,
-        }));
-        
-        setMessages(prev => [...prev, ...agentMessages]);
+    ];
+
+    try {
+      // 首先调用调度中心获取智能体列表
+      const dispatchResponse = await callDiscussionDispatchCenter(
+        group.id,
+        fastGPTMessages,
+        group.id,
+        isDiscussionMode
+      );
+
+      if (dispatchResponse && dispatchResponse.choices && dispatchResponse.choices.length > 0) {
+        const content = dispatchResponse.choices[0].message.content;
+        let agentList: any[] = [];
+
+        console.log('Raw dispatch content:', content);
+
+        try {
+          // 尝试清理content并解析JSON
+          const cleanContent = content.trim();
+          if (cleanContent) {
+            agentList = JSON.parse(cleanContent);
+          }
+        } catch (parseError) {
+          console.error('Failed to parse agent list:', parseError);
+          console.error('Content that failed to parse:', content);
+
+          // 如果解析失败，使用默认智能体逻辑
+          agentList = [];
+        }
+
+        if (Array.isArray(agentList) && agentList.length > 0) {
+          // 为每个智能体创建"思考中"消息并进行流式调用
+          const agentPromises = agentList.map(async (agentInfo: { id: string; name: string }, index: number) => {
+            const agent = groupAgents.find(a => a.name === agentInfo.name);
+
+            // 创建"思考中"消息
+            const agentMessageId = `agent_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`;
+            const agentMessage: Message = {
+              id: agentMessageId,
+              agentName: agentInfo.name,
+              agentColor: agent?.color || '#6366f1',
+              content: "思考中......",
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            };
+
+            setMessages(prev => [...prev, agentMessage]);
+
+            // 异步保存用户消息到数据库
+            saveGroupMessage(
+              group.id,
+              userMessage.id,
+              userMessage.agentName,
+              userMessage.agentColor,
+              userMessage.content,
+              true
+            ).catch(error => {
+              console.error('Failed to save user message:', error);
+            });
+
+            // 进行流式调用
+            await new Promise<void>((resolve) => {
+              callFastGPT(
+                agentInfo.id,
+                agentInfo.name,
+                group.id,
+                fastGPTMessages,
+                (chunk: string) => {
+                  // 流式更新消息内容
+                  setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                      msg.id === agentMessageId
+                        ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
+                        : msg
+                    )
+                  );
+                },
+                () => {
+                  // 流式完成，保存最终回复到数据库
+                  setMessages(prevMessages => {
+                    const finalMessage = prevMessages.find(msg => msg.id === agentMessageId);
+                    if (finalMessage && finalMessage.content !== "思考中......") {
+                      saveGroupMessage(
+                        group.id,
+                        agentMessageId,
+                        agentInfo.name,
+                        agent?.color || '#6366f1',
+                        finalMessage.content,
+                        false
+                      ).catch(error => {
+                        console.error('Failed to save agent message:', error);
+                      });
+                    }
+                    return prevMessages;
+                  });
+                  resolve();
+                },
+                (error: Error) => {
+                  console.error(`Error calling agent ${agentInfo.name}:`, error);
+
+                  // 更新为错误消息
+                  setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                      msg.id === agentMessageId
+                        ? {
+                            ...msg,
+                            content: `${agentInfo.name}回复出错: ${error.message}`
+                          }
+                        : msg
+                    )
+                  );
+                  resolve();
+                }
+              );
+            });
+          });
+
+          // 等待所有智能体完成回复
+          await Promise.all(agentPromises);
+        } else {
+          // 使用默认智能体或群聊中的第一个智能体
+          console.log('No agents found from dispatch center, using group agents');
+
+          if (groupAgents.length > 0) {
+            const defaultAgent = groupAgents[0];
+
+            // 创建"思考中"消息
+            const agentMessageId = `agent_${Date.now()}_0_${Math.random().toString(36).substr(2, 9)}`;
+            const agentMessage: Message = {
+              id: agentMessageId,
+              agentName: defaultAgent.name,
+              agentColor: defaultAgent.color,
+              content: "思考中......",
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            };
+
+            setMessages(prev => [...prev, agentMessage]);
+
+            // 进行流式调用
+            await new Promise<void>((resolve) => {
+              callFastGPT(
+                defaultAgent.id,
+                defaultAgent.name,
+                group.id,
+                fastGPTMessages,
+                (chunk: string) => {
+                  // 流式更新消息内容
+                  setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                      msg.id === agentMessageId
+                        ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
+                        : msg
+                    )
+                  );
+                },
+                () => {
+                  // 流式完成，保存最终回复到数据库
+                  setMessages(prevMessages => {
+                    const finalMessage = prevMessages.find(msg => msg.id === agentMessageId);
+                    if (finalMessage && finalMessage.content !== "思考中......") {
+                      saveGroupMessage(
+                        group.id,
+                        agentMessageId,
+                        defaultAgent.name,
+                        defaultAgent.color,
+                        finalMessage.content,
+                        false
+                      ).catch(error => {
+                        console.error('Failed to save agent message:', error);
+                      });
+                    }
+                    return prevMessages;
+                  });
+                  resolve();
+                },
+                (error: Error) => {
+                  console.error(`Error calling default agent ${defaultAgent.name}:`, error);
+
+                  // 更新为错误消息
+                  setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                      msg.id === agentMessageId
+                        ? {
+                            ...msg,
+                            content: `${defaultAgent.name}回复出错: ${error.message}`
+                          }
+                        : msg
+                    )
+                  );
+                  resolve();
+                }
+              );
+            });
+          } else {
+            console.log('No agents available in this group');
+
+            const errorMessage: Message = {
+              id: `error_${Date.now()}`,
+              agentName: "系统",
+              agentColor: "#ef4444",
+              content: "群聊中没有可用的智能体",
+              timestamp: new Date().toISOString(),
+              isUser: false,
+            };
+
+            setMessages(prev => [...prev, errorMessage]);
+          }
+        }
       } else {
-        throw new Error('API返回格式错误');
+        // 调度中心调用失败，使用群聊中的第一个智能体
+        console.log('Dispatch center failed, using group agents');
+
+        if (groupAgents.length > 0) {
+          const defaultAgent = groupAgents[0];
+
+          // 创建"思考中"消息
+          const agentMessageId = `agent_${Date.now()}_0_${Math.random().toString(36).substr(2, 9)}`;
+          const agentMessage: Message = {
+            id: agentMessageId,
+            agentName: defaultAgent.name,
+            agentColor: defaultAgent.color,
+            content: "思考中......",
+            timestamp: new Date().toISOString(),
+            isUser: false,
+          };
+
+          setMessages(prev => [...prev, agentMessage]);
+
+          // 进行流式调用
+          await new Promise<void>((resolve) => {
+            callFastGPT(
+              defaultAgent.id,
+              defaultAgent.name,
+              group.id,
+              fastGPTMessages,
+              (chunk: string) => {
+                // 流式更新消息内容
+                setMessages(prevMessages =>
+                  prevMessages.map(msg =>
+                    msg.id === agentMessageId
+                      ? { ...msg, content: msg.content === "思考中......" ? chunk : msg.content + chunk }
+                      : msg
+                  )
+                );
+              },
+              () => {
+                // 流式完成，保存最终回复到数据库
+                setMessages(prevMessages => {
+                  const finalMessage = prevMessages.find(msg => msg.id === agentMessageId);
+                  if (finalMessage && finalMessage.content !== "思考中......") {
+                    saveGroupMessage(
+                      group.id,
+                      agentMessageId,
+                      defaultAgent.name,
+                      defaultAgent.color,
+                      finalMessage.content,
+                      false
+                    ).catch(error => {
+                      console.error('Failed to save agent message:', error);
+                    });
+                  }
+                  return prevMessages;
+                });
+                resolve();
+              },
+              (error: Error) => {
+                console.error(`Error calling default agent ${defaultAgent.name}:`, error);
+
+                // 更新为错误消息
+                setMessages(prevMessages =>
+                  prevMessages.map(msg =>
+                    msg.id === agentMessageId
+                      ? {
+                          ...msg,
+                          content: `${defaultAgent.name}回复出错: ${error.message}`
+                        }
+                      : msg
+                  )
+                );
+                resolve();
+              }
+            );
+          });
+        }
       }
     } catch (error) {
       console.error('发送消息失败:', error);
-      
-      // 如果API调用失败，显示错误消息
+
       const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: `error_${Date.now()}`,
         agentName: "系统",
-        agentColor: "bg-red-500",
+        agentColor: "#ef4444",
         content: `发送消息失败: ${error instanceof Error ? error.message : '未知错误'}`,
         timestamp: new Date().toISOString(),
         isUser: false,
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -597,22 +903,65 @@ export function GroupChatInterface({
     }
   };
 
-  // 处理显示群聊列表
-  const handleShowGroupList = () => {
-    setShowGroupSidebar('list');
-  };
-
   // 处理显示群聊详情
   const handleShowGroupDetail = () => {
-    if (group) {
-      setShowGroupSidebar('detail');
-      onShowGroupDetail(group);
-    }
+    setShowGroupSidebar('detail');
   };
 
   // 处理侧边栏返回
   const handleSidebarBack = () => {
     setShowGroupSidebar(null);
+  };
+
+  // 保存群聊消息到数据库
+  const saveGroupMessage = async (
+    groupId: string,
+    messageId: string,
+    agentName: string,
+    agentColor: string,
+    content: string,
+    isUser: boolean
+  ) => {
+    try {
+      const response = await fetch(`/api/groupchats/${groupId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messageId,
+          agentName,
+          agentColor,
+          content,
+          isUser
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to save message to database:', response.status, response.statusText, errorText);
+
+        // 如果是重复键错误，不是真正的错误，忽略它
+        if (response.status === 409 || errorText.includes('duplicate key')) {
+          console.log('Message already saved (duplicate key error ignored)');
+          return;
+        }
+      } else {
+        const data = await response.json();
+        if (data.alreadyExists) {
+          console.log('Message already exists in database:', data.message?.id);
+        } else {
+          console.log('Message saved successfully:', data.message?.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving group message:', error);
+    }
+  };
+
+  // 更新思考中的消息为正式回复（现在不再需要，因为我们使用流式更新）
+  const updateThinkingMessages = async (groupId: string) => {
+    // 保留这个函数以防将来需要
   };
 
   if (!group) {
@@ -629,69 +978,45 @@ export function GroupChatInterface({
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
       {/* 群聊头部 */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="h-8 w-8 p-0"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={group.avatar} alt={group.name} />
-            <AvatarFallback className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-              <Users className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{group.name}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {getGroupAgents().length} 个智能体
-            </p>
+    <div className="h-16 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-6 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col">
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">{group.name}</h2>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs text-zinc-500">{getGroupAgents().length} agents active</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={isDiscussionMode ? "default" : "outline"}
-            size="sm"
-            onClick={isDiscussionMode ? handleStopDiscussion : handleStartDiscussion}
-            className="h-8 px-3"
-            title={isDiscussionMode ? "关闭讨论模式" : "开启讨论模式"}
-          >
-            {isDiscussionMode ? (
-              <>
-                <MessageSquare className="h-4 w-4 mr-1" />
-                讨论中
-              </>
-            ) : (
-              <>
-                <MessageSquareOff className="h-4 w-4 mr-1" />
-                普通模式
-              </>
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleShowGroupList}
-            className="h-8 w-8 p-0"
-            title="群聊列表"
-          >
-            <Users className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleShowGroupDetail}
-            className="h-8 w-8 p-0"
-            title="群聊详情"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
+
+      <div className="flex items-center gap-1">
+        <Button
+          variant={isDiscussionMode ? "default" : "ghost"}
+          size="sm"
+          className={`${isDiscussionMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "text-zinc-500"} mr-2`}
+          onClick={isDiscussionMode ? handleStopDiscussion : handleStartDiscussion}
+        >
+          <MessageSquare className="h-4 w-4 mr-1.5" />
+          {isDiscussionMode ? "讨论中" : "开启讨论"}
+        </Button>
+
+        <Button variant="ghost" size="icon" className="text-zinc-500">
+          <Phone className="h-5 w-5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="text-zinc-500">
+          <Video className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-zinc-500"
+          onClick={handleShowGroupDetail}
+          title="群聊详情"
+        >
+          <Settings className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
 
       {/* 消息列表 */}
       <MessageList messages={messages} scrollAreaRef={scrollAreaRef} agents={getGroupAgents()} />
@@ -732,41 +1057,15 @@ export function GroupChatInterface({
         onSelectAgent={selectAgent}
       />
 
-      {/* 群聊侧边栏 */}
-      {showGroupSidebar && (
+      {/* 群聊详情侧边栏 */}
+      {showGroupSidebar === 'detail' && (
         <div className="absolute top-0 right-0 h-full w-52 sm:w-60 bg-slate-50 dark:bg-slate-900 z-10 shadow-lg">
-          {showGroupSidebar === 'list' ? (
-            <div className="h-full">
-              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                <h2 className="text-lg font-medium text-slate-800 dark:text-slate-200">群聊列表</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSidebarBack}
-                  className="h-8 w-8 p-0"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </div>
-              <GroupChatList
-                onSelectGroup={(selectedGroup) => {
-                  onShowGroupDetail(selectedGroup);
-                  setShowGroupSidebar(null);
-                }}
-                onCreateNewGroup={() => {}}
-                selectedGroupId={group.id}
-              />
-            </div>
-          ) : (
-            <div className="h-full">
-              <GroupChatDetail
-                group={group}
-                onBack={handleSidebarBack}
-                onUpdateGroup={() => {}}
-                onStartChat={() => {}}
-              />
-            </div>
-          )}
+          <GroupChatDetail
+            group={group}
+            onBack={handleSidebarBack}
+            onUpdateGroup={() => {}}
+            onStartChat={() => {}}
+          />
         </div>
       )}
     </div>

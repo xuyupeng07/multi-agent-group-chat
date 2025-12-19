@@ -8,7 +8,7 @@ import { ChatInput } from "./ChatInput";
 import { SuggestionBubbles } from "./SuggestionBubbles";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { ArrowLeft, Users, Plus, Settings } from "lucide-react";
+import { Users, Plus, Settings, Phone, Video } from "lucide-react";
 import { GroupChatDetail } from "./GroupChatDetail";
 import { GroupChatList } from "./GroupChatList";
 
@@ -42,13 +42,13 @@ export function SingleGroupChat({
   // 获取群聊中的智能体
   const getGroupAgents = () => {
     if (!group || !group.agentIds) return [];
-    
+
     return group.agentIds.map(agentId => {
       // 如果agentId已经是Agent对象（通过populate获取），直接使用
       if (typeof agentId === 'object' && agentId !== null) {
         return agentId as Agent;
       }
-      
+
       // 如果agentId是字符串，从agents数组中查找
       const agent = agents.find(a => a.id === agentId);
       return agent || {
@@ -62,6 +62,19 @@ export function SingleGroupChat({
       };
     });
   };
+
+  // 清理effect - 组件卸载时重置状态
+  useEffect(() => {
+    return () => {
+      // 组件卸载时重置所有状态
+      setShowGroupSidebar(null);
+      setIsLoading(false);
+      setInputValue("");
+      setShowAgentList(false);
+      setMentionStartIndex(null);
+      setFilteredAgents([]);
+    };
+  }, []);
 
   // 加载群聊历史消息
   useEffect(() => {
@@ -132,21 +145,23 @@ export function SingleGroupChat({
   // 处理发送消息
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
-    
-    // 添加用户消息
+
+    const messageContent = inputValue;
+
+    // 立即显示用户消息
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `temp_user_${Date.now()}`,
       agentName: "用户",
       agentColor: "bg-indigo-600",
-      content: inputValue,
+      content: messageContent,
       timestamp: new Date().toISOString(),
       isUser: true,
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue("");
     setIsLoading(true);
-    
+
     try {
       // 调用群聊API
       const response = await fetch(`/api/groupchats/${group.id}/chat`, {
@@ -155,36 +170,46 @@ export function SingleGroupChat({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: inputValue,
+          message: messageContent,
           agentIds: getGroupAgents().map(agent => agent.id)
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`API错误: ${response.status} ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success && data.messages && Array.isArray(data.messages)) {
-        // 添加智能体回复消息
-        const agentMessages: Message[] = data.messages.map((msg: any) => ({
+        // 移除临时的用户消息，添加API返回的正式消息
+        const newMessages: Message[] = data.messages.map((msg: any) => ({
           id: msg.id,
           agentName: msg.agentName,
           agentColor: msg.agentColor,
           content: msg.content,
           timestamp: msg.timestamp,
-          isUser: false,
+          isUser: msg.isUser,
         }));
-        
-        setMessages(prev => [...prev, ...agentMessages]);
+
+        // 替换临时用户消息为正式消息，并添加AI回复
+        setMessages(prev => {
+          // 移除临时用户消息
+          const filteredMessages = prev.filter(msg => msg.id !== userMessage.id);
+          return [...filteredMessages, ...newMessages];
+        });
       } else {
         throw new Error('API返回格式错误');
       }
     } catch (error) {
       console.error('发送消息失败:', error);
-      
-      // 如果API调用失败，显示错误消息
+
+      // 移除临时用户消息并显示错误消息
+      setMessages(prev => {
+        const filteredMessages = prev.filter(msg => msg.id !== userMessage.id);
+        return filteredMessages;
+      });
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         agentName: "系统",
@@ -193,7 +218,7 @@ export function SingleGroupChat({
         timestamp: new Date().toISOString(),
         isUser: false,
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -248,41 +273,35 @@ export function SingleGroupChat({
   return (
     <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
       {/* 群聊头部 */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="h-8 w-8 p-0"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={group.avatar} alt={group.name} />
-            <AvatarFallback className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-              <Users className="h-4 w-4" />
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">{group.name}</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {getGroupAgents().length} 个智能体
-            </p>
+    <div className="h-16 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-6 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10">
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col">
+          <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">{group.name}</h2>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-xs text-zinc-500">{getGroupAgents().length} agents active</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleShowGroupDetail}
-            className="h-8 w-8 p-0"
-            title="群聊详情"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
       </div>
+
+      <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="text-zinc-500">
+          <Phone className="h-5 w-5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="text-zinc-500">
+          <Video className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-zinc-500"
+          onClick={handleShowGroupDetail}
+          title="群聊详情"
+        >
+          <Settings className="h-5 w-5" />
+        </Button>
+      </div>
+    </div>
 
       {/* 消息列表 */}
       <MessageList messages={messages} scrollAreaRef={scrollAreaRef} agents={getGroupAgents()} />

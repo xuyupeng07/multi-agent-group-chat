@@ -151,41 +151,54 @@ export async function PUT(
         
         // 如果更新了智能体列表，验证所有智能体ID是否存在
         if (agentIds && agentIds.length > 0) {
-          // 尝试两种ID格式查找智能体
-          const agentsByObjectId = await Agent.find({ _id: { $in: agentIds } });
-          const agentsByMappedId = await Agent.find({ id: { $in: agentIds } });
-          
-          // 合并结果，去重
-          const allAgents = [...agentsByObjectId, ...agentsByMappedId];
-          const uniqueAgents = allAgents.filter((agent, index, self) => 
+          // 首先尝试通过_id查找
+          let agents = await Agent.find({ _id: { $in: agentIds } });
+
+          // 如果通过_id找到的数量不足，说明可能使用的是映射的id字段
+          if (agents.length < agentIds.length) {
+            // 找出还没有找到的ID
+            const foundIds = new Set(agents.map(a => a._id.toString()));
+            const missingIds = agentIds.filter((id: string) => !foundIds.has(id));
+
+            if (missingIds.length > 0) {
+              // 通过映射的id字段查找
+              const agentsByMappedId = await Agent.find({ id: { $in: missingIds } });
+
+              // 只添加通过映射id找到的智能体
+              agents = [...agents, ...agentsByMappedId];
+            }
+          }
+
+          // 去重（基于_id）
+          const uniqueAgents = agents.filter((agent, index, self) =>
             index === self.findIndex((a) => a._id.toString() === agent._id.toString())
           );
-          
+
           console.log(`Found ${uniqueAgents.length} agents out of ${agentIds.length} requested`);
           console.log('Requested agent IDs:', agentIds);
           console.log('Found agent IDs:', uniqueAgents.map(a => a._id.toString()));
-          
+
           // 如果找到的智能体数量少于请求的数量，说明有智能体不存在
           if (uniqueAgents.length < agentIds.length) {
             // 找出哪些ID不存在
             const foundIds = new Set([
-              ...agentsByObjectId.map(a => a._id.toString()),
-              ...agentsByMappedId.map(a => a.id || a._id.toString())
+              ...uniqueAgents.map(a => a._id.toString()),
+              ...uniqueAgents.map(a => a.id).filter(Boolean)
             ]);
             const missingIds = agentIds.filter((id: string) => !foundIds.has(id));
-            
+
             console.error('Missing agent IDs:', missingIds);
-            
+
             return NextResponse.json(
-              { 
-                success: false, 
+              {
+                success: false,
                 error: `部分智能体不存在: ${missingIds.join(', ')}`,
                 missingIds: missingIds
               },
               { status: 400 }
             );
           }
-          
+
           // 将找到的智能体ID转换为ObjectId格式用于更新
           const validAgentIds = uniqueAgents.map(agent => agent._id.toString());
           updateData.agentIds = validAgentIds;

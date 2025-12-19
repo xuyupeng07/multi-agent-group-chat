@@ -131,9 +131,11 @@ export function MessageItem({ message, agents = [] }: MessageItemProps) {
         </div>
 
         <div className={`
-          px-4 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed
+          px-4 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed relative
           ${message.isUser
             ? "bg-indigo-600 text-white rounded-tr-sm"
+            : message.isThinking
+            ? "bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 text-zinc-900 dark:text-zinc-100 rounded-tl-sm border border-blue-200 dark:border-blue-700"
             : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-sm border border-zinc-200 dark:border-zinc-700"
           }
         `}>
@@ -218,6 +220,20 @@ export function MessageItem({ message, agents = [] }: MessageItemProps) {
             {message.content}
           </ReactMarkdown>
         </div>
+
+        {/* 如果是思考状态，覆盖显示思考动画 */}
+        {message.isThinking && (
+          <div className="absolute inset-0 flex items-center justify-center px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-600 dark:text-zinc-400 text-sm">思考中</span>
+              <div className="flex gap-1">
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

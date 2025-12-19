@@ -5,6 +5,7 @@ export interface Message {
   content: string;
   timestamp: string;
   isUser: boolean;
+  isThinking?: boolean;
 }
 
 export interface Agent {
