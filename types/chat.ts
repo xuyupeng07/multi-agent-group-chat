@@ -20,6 +20,17 @@ export interface Agent {
   baseUrl?: string;
 }
 
+export interface GroupChat {
+  id: string;
+  name: string;
+  description?: string;
+  agentIds: (Agent | string)[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  avatar?: string;
+}
+
 export interface ChatState {
   messages: Message[];
   inputValue: string;
@@ -30,4 +41,6 @@ export interface ChatState {
   mentionStartIndex: number | null;
   filteredAgents: string[];
   chatId: string | null;
+  groupChatId?: string;
+  currentView?: 'chat' | 'group';
 }

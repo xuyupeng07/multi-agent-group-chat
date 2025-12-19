@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { callFastGPT, FastGPTMessage, extractMentionedAgent, loadAgentConfigs, callDispatchCenter, callDiscussionDispatchCenter, getAgentApiKey, DispatchCenterResponse } from "@/lib/fastgpt";
-import { Message, Agent } from "@/types/chat";
+import { Message, Agent, GroupChat } from "@/types/chat";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ChatErrorBoundary, AgentListErrorBoundary, ChatInputErrorBoundary, AgentConfigErrorBoundary } from "@/components/ErrorBoundaries";
+import { setupGlobalErrorHandlers } from "@/lib/errorHandling";
 
 interface ChatHistoryItem {
   id: string;
@@ -17,6 +20,8 @@ import { ChatInput } from "@/components/ChatInput";
 import { AgentConfigSidebar } from "@/components/AgentConfigSidebar";
 import { CreateAgentSidebar } from "@/components/CreateAgentSidebar";
 import { SuggestionBubbles } from "@/components/SuggestionBubbles";
+import { GroupChatInterface } from "@/components/GroupChatInterface";
+import { SingleGroupChat } from "@/components/SingleGroupChat";
 
 export default function Home() {
   // Static initial data to prevent hydration mismatch
@@ -33,11 +38,61 @@ export default function Home() {
   const [isCreateAgentSidebarOpen, setIsCreateAgentSidebarOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
-  const [isDiscussionMode, setIsDiscussionMode] = useState(false);
-  const [discussionRounds, setDiscussionRounds] = useState(3);
-  const [discussionPaused, setDiscussionPaused] = useState(false);
-  const [discussionCompleted, setDiscussionCompleted] = useState(false);
-  const [currentRound, setCurrentRound] = useState(0);
+  // 群聊相关状态
+  const [currentView, setCurrentView] = useState<'chat' | 'group' | 'singleGroup'>('chat');
+  const [selectedGroup, setSelectedGroup] = useState<GroupChat | null>(null);
+  // 讨论状态管理 - 每个聊天ID独立管理讨论状态
+  const [discussionStates, setDiscussionStates] = useState<{ [key: string]: {
+    isDiscussionMode: boolean;
+    discussionRounds: number;
+    discussionPaused: boolean;
+    discussionCompleted: boolean;
+    discussionWaitingForInput: boolean;
+    currentRound: number;
+  } }>({});
+  
+  // 获取当前聊天的讨论状态，如果不存在则使用默认值
+  const getCurrentDiscussionState = () => {
+    const currentChatId = chatId || "default";
+    return discussionStates[currentChatId] || {
+      isDiscussionMode: false,
+      discussionRounds: 3,
+      discussionPaused: false,
+      discussionCompleted: false,
+      discussionWaitingForInput: false,
+      currentRound: 0
+    };
+  };
+  
+  // 更新当前聊天的讨论状态
+  const updateCurrentDiscussionState = (updates: Partial<{
+    isDiscussionMode: boolean;
+    discussionRounds: number;
+    discussionPaused: boolean;
+    discussionCompleted: boolean;
+    discussionWaitingForInput: boolean;
+    currentRound: number;
+  }>) => {
+    const currentChatId = chatId || "default";
+    const currentState = getCurrentDiscussionState();
+    const newState = { ...currentState, ...updates };
+    
+    setDiscussionStates(prev => ({
+      ...prev,
+      [currentChatId]: newState
+    }));
+    
+    return newState;
+  };
+  
+  // 为了兼容性，从当前状态中提取值
+  const currentDiscussionState = getCurrentDiscussionState();
+  const isDiscussionMode = currentDiscussionState.isDiscussionMode;
+  const discussionRounds = currentDiscussionState.discussionRounds;
+  const discussionPaused = currentDiscussionState.discussionPaused;
+  const discussionCompleted = currentDiscussionState.discussionCompleted;
+  const discussionWaitingForInput = currentDiscussionState.discussionWaitingForInput;
+  const currentRound = currentDiscussionState.currentRound;
   const abortControllerRef = useRef<AbortController | null>(null);
   // 获取当前 AbortController 的 signal，如果不存在则返回 undefined
   const getAbortSignal = () => abortControllerRef.current?.signal;
@@ -52,7 +107,10 @@ export default function Home() {
     if (scrollAreaRef.current) {
       const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
       if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
+        // 使用requestAnimationFrame优化滚动性能
+        requestAnimationFrame(() => {
+          scrollElement.scrollTop = scrollElement.scrollHeight;
+        });
       }
     }
   }, [messages]);
@@ -61,6 +119,12 @@ export default function Home() {
   useEffect(() => {
     loadAgentConfigs();
     loadAgentsFromDatabase();
+    
+    // 设置全局错误处理
+    const cleanupErrorHandlers = setupGlobalErrorHandlers();
+    
+    // 清理函数
+    return cleanupErrorHandlers;
   }, []);
 
   // 从数据库加载智能体数据
@@ -75,6 +139,7 @@ export default function Home() {
           name: string;
           role: string;
           introduction: string;
+          avatar: string;
           status: string;
           apiKey: string;
           color: string;
@@ -84,6 +149,7 @@ export default function Home() {
           name: agent.name,
           role: agent.role,
           introduction: agent.introduction || '',
+          avatar: agent.avatar || '',
           status: agent.status,
           color: agent.color,
           apiKey: agent.apiKey,
@@ -92,6 +158,12 @@ export default function Home() {
         // 更新智能体状态
         setAgents(formattedAgents);
         console.log('Loaded agents from database:', formattedAgents);
+        console.log('Avatar data:', formattedAgents.map(a => ({ 
+          name: a.name, 
+          hasAvatar: !!a.avatar, 
+          avatarLength: a.avatar?.length || 0,
+          avatarStart: a.avatar ? a.avatar.substring(0, 20) + (a.avatar.length > 20 ? "..." : "") : ""
+        })));
       } else {
         console.error('Failed to load agents from database');
       }
@@ -170,7 +242,7 @@ export default function Home() {
 
   // 处理暂停讨论的函数
   const handlePauseDiscussion = () => {
-    setDiscussionPaused(true);
+    updateCurrentDiscussionState({ discussionPaused: true });
     
     // 中止正在进行的API请求
     if (abortControllerRef.current) {
@@ -183,9 +255,48 @@ export default function Home() {
   };
 
   // 处理恢复讨论的函数
-  const handleResumeDiscussion = () => {
-    setDiscussionPaused(false);
-    // 这里不需要立即开始讨论，只是重置状态
+  const handleResumeDiscussion = async () => {
+    // 获取当前状态
+    const currentState = getCurrentDiscussionState();
+    
+    // 如果讨论已完成，重置状态但等待用户输入
+    if (currentState.discussionCompleted) {
+      // 重置讨论状态
+      updateCurrentDiscussionState({
+        discussionPaused: false,
+        discussionCompleted: false,
+        discussionWaitingForInput: true,
+        currentRound: 0
+      });
+      
+      // 添加提示消息，等待用户输入
+      const readyMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        agentName: "调度中心",
+        agentColor: "bg-gray-500",
+        content: "准备开始新一轮讨论，请输入新话题...",
+        timestamp: new Date().toISOString(),
+        isUser: false,
+      };
+      
+      setMessages(prev => [...prev, readyMessage]);
+      // 不设置 isLoading，等待用户输入
+    } 
+    // 如果讨论只是暂停但未完成，只重置暂停状态
+    else if (currentState.discussionPaused) {
+      updateCurrentDiscussionState({ discussionPaused: false });
+      // 添加恢复讨论的系统消息
+      const resumeMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        agentName: "调度中心",
+        agentColor: "bg-gray-500",
+        content: "讨论已恢复...",
+        timestamp: new Date().toISOString(),
+        isUser: false,
+      };
+      
+      setMessages(prev => [...prev, resumeMessage]);
+    }
   };
 
   // 格式化日期显示文本的辅助函数
@@ -217,20 +328,62 @@ export default function Home() {
   };
 
   // 从数据库加载聊天记录
-  const loadChatFromDatabase = async (chatId: string) => {
+  const loadChatFromDatabase = async (chatId: string, retryCount: number = 0) => {
     try {
-      const response = await fetch(`/api/chats/${chatId}`);
+      // 添加时间戳以确保请求唯一性，减少并发冲突的可能性
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/chats/${chatId}?_t=${timestamp}`);
+      
       if (response.ok) {
         const chatData = await response.json();
         setMessages(chatData.messages);
         setChatId(chatData.id);
+        
+        // 加载聊天记录后，强制重新渲染以更新讨论状态
+        // 这确保了讨论状态与新加载的chatId绑定
+        setDiscussionStates(prev => {
+          // 如果这个chatId没有讨论状态，创建一个默认的
+          if (!prev[chatData.id]) {
+            return {
+              ...prev,
+              [chatData.id]: {
+                isDiscussionMode: false,
+                discussionRounds: 3,
+                discussionPaused: false,
+                discussionCompleted: false,
+                discussionWaitingForInput: false,
+                currentRound: 0
+              }
+            };
+          }
+          return prev;
+        });
+        
         return true;
       } else {
-        console.error('Failed to load chat from database');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to load chat from database:', response.status, errorData.error || 'Unknown error');
+        
+        // 对于任何500错误，都进行重试
+        if (response.status === 500 && retryCount < 3) {
+          console.log(`Retrying load operation (attempt ${retryCount + 1}/3)...`);
+          // 增加延迟时间，给数据库操作更多时间
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return loadChatFromDatabase(chatId, retryCount + 1);
+        }
+        
         return false;
       }
     } catch (error) {
       console.error('Error loading chat from database:', error);
+      
+      // 如果是网络错误，也进行重试
+      if (retryCount < 3) {
+        console.log(`Retrying load operation due to network error (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return loadChatFromDatabase(chatId, retryCount + 1);
+      }
+      
       return false;
     }
   };
@@ -245,7 +398,9 @@ export default function Home() {
         payload.title = title;
       }
       
-      const response = await fetch(`/api/chats/${chatId}`, {
+      // 添加时间戳以确保请求唯一性，减少并发冲突的可能性
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/chats/${chatId}?_t=${timestamp}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -260,11 +415,11 @@ export default function Home() {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to save chat to database:', response.status, errorData.error || 'Unknown error');
         
-        // 如果是版本冲突错误且重试次数少于3次，则延迟后重试
-        if (response.status === 500 && errorData.error && errorData.error.includes('版本') && retryCount < 3) {
+        // 对于任何500错误，都进行重试，而不仅仅是版本冲突
+        if (response.status === 500 && retryCount < 3) {
           console.log(`Retrying save operation (attempt ${retryCount + 1}/3)...`);
-          // 延迟一段时间后重试，避免立即重试导致相同的冲突
-          await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1)));
+          // 增加延迟时间，给数据库操作更多时间
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
           return saveChatToDatabase(chatId, messages, title, retryCount + 1);
         }
         
@@ -272,14 +427,24 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error saving chat to database:', error);
+      
+      // 如果是网络错误，也进行重试
+      if (retryCount < 3) {
+        console.log(`Retrying save operation due to network error (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return saveChatToDatabase(chatId, messages, title, retryCount + 1);
+      }
+      
       return null;
     }
   };
 
   // 创建新聊天记录
-  const createNewChatInDatabase = async (title: string, messages: Message[] = []) => {
+  const createNewChatInDatabase = async (title: string, messages: Message[] = [], retryCount: number = 0) => {
     try {
-      const response = await fetch('/api/chats', {
+      // 添加时间戳以确保请求唯一性，减少并发冲突的可能性
+      const timestamp = new Date().getTime();
+      const response = await fetch(`/api/chats?_t=${timestamp}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -293,10 +458,27 @@ export default function Home() {
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to create new chat in database:', response.status, errorData.error || 'Unknown error');
+        
+        // 对于任何500错误，都进行重试
+        if (response.status === 500 && retryCount < 3) {
+          console.log(`Retrying create operation (attempt ${retryCount + 1}/3)...`);
+          // 增加延迟时间，给数据库操作更多时间
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return createNewChatInDatabase(title, messages, retryCount + 1);
+        }
+        
         return null;
       }
     } catch (error) {
       console.error('Error creating new chat in database:', error);
+      
+      // 如果是网络错误，也进行重试
+      if (retryCount < 3) {
+        console.log(`Retrying create operation due to network error (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return createNewChatInDatabase(title, messages, retryCount + 1);
+      }
+      
       return null;
     }
   };
@@ -304,9 +486,13 @@ export default function Home() {
   // 处理讨论模式的函数
   const handleDiscussionMode = async (messageContent: string) => {
     // 重置讨论状态
-    setDiscussionPaused(false);
-    setDiscussionCompleted(false);
-    setCurrentRound(0);
+    updateCurrentDiscussionState({
+      isDiscussionMode: true,
+      discussionPaused: false,
+      discussionCompleted: false,
+      discussionWaitingForInput: false,
+      currentRound: 0
+    });
     
     // 重置 AbortController
     abortControllerRef.current = null;
@@ -390,7 +576,10 @@ export default function Home() {
     
     setInputValue("");
     setIsLoading(true);
-    setDiscussionPaused(false);
+    updateCurrentDiscussionState({ 
+      discussionPaused: false,
+      discussionWaitingForInput: false
+    });
     
     // 准备发送给调度中心的消息历史
     // 在讨论模式下，使用格式化的内容
@@ -490,16 +679,39 @@ export default function Home() {
     abortControllerRef.current = new AbortController();
     
     let currentMessages = [...initialMessages];
-    let round = 1;
+    
+    // 获取当前讨论状态，确定从哪一轮开始
+    const currentState = getCurrentDiscussionState();
+    let round = currentState.currentRound > 0 ? currentState.currentRound + 1 : 1;
     
     // 持续进行讨论，直到达到指定的轮数
-    while (round <= discussionRounds && !discussionPaused) {
+    while (round <= discussionRounds) {
+      // 在每次循环开始时检查暂停状态
+      const currentState = getCurrentDiscussionState();
+      if (currentState.discussionPaused) {
+        console.log('讨论已被暂停，停止后续轮次');
+        const pauseMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          agentName: "调度中心",
+          agentColor: "bg-gray-500",
+          content: `讨论已暂停（第${round}/${discussionRounds}轮），点击继续讨论按钮可恢复`,
+          timestamp: new Date().toISOString(),
+          isUser: false,
+        };
+        
+        setMessages(prev => [...prev, pauseMessage]);
+        return;
+      }
+      
       // 检查是否已被中止
       if (abortControllerRef.current?.signal.aborted) {
         console.log('讨论已被中止');
         setIsLoading(false);
         return;
       }
+      
+      // 更新当前轮数
+      updateCurrentDiscussionState({ currentRound: round });
       
       // 每轮只选择一个智能体
       try {
@@ -508,7 +720,7 @@ export default function Home() {
         const formattedMessages = [{ role: 'user' as const, content: formattedContent }];
         
         // 调用讨论模式调度中心选择一个智能体
-        const dispatchResponse: DispatchCenterResponse = await callDiscussionDispatchCenter(currentChatId, formattedMessages, getAbortSignal());
+        const dispatchResponse: DispatchCenterResponse = await callDiscussionDispatchCenter(currentChatId, formattedMessages, "", true, getAbortSignal());
         
         // 解析调度中心返回的智能体
         let selectedAgent = null;
@@ -585,6 +797,12 @@ export default function Home() {
             }
           ];
           
+          // 创建一个检查暂停状态的函数
+          const checkPauseStatus = () => {
+            const currentState = getCurrentDiscussionState();
+            return currentState.discussionPaused;
+          };
+          
           // 调用FastGPT API
           callFastGPT(
             agentConfig.id,
@@ -592,6 +810,12 @@ export default function Home() {
             currentChatId,
             formattedMessages,
             (chunk: string) => {
+              // 在每次接收到chunk时检查暂停状态
+              if (checkPauseStatus()) {
+                console.log('检测到暂停状态，停止接收更多内容');
+                return;
+              }
+              
               // 流式更新消息内容
               setMessages(prevMessages => 
                 prevMessages.map(msg => 
@@ -658,7 +882,7 @@ export default function Home() {
         });
         
         // 更新当前轮数
-        setCurrentRound(round);
+        updateCurrentDiscussionState({ currentRound: round });
         
         // 等待一段时间，让用户看到智能体的回答
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -682,13 +906,16 @@ export default function Home() {
         id: (Date.now() + 1).toString(),
         agentName: "调度中心",
         agentColor: "bg-gray-500",
-        content: `讨论已完成（共${discussionRounds}轮）。如需继续讨论，请输入新的话题或点击继续讨论。`,
+        content: `讨论已完成（共${discussionRounds}轮）。点击继续讨论按钮可开始新一轮讨论。`,
         timestamp: new Date().toISOString(),
         isUser: false,
       };
       
       setMessages(prev => [...prev, endMessage]);
-      setDiscussionCompleted(true);
+      updateCurrentDiscussionState({ 
+        discussionCompleted: true,
+        discussionWaitingForInput: true
+      });
     }
     
     // 清理 AbortController
@@ -726,32 +953,6 @@ export default function Home() {
     setTimeout(() => {
       chatInputRef.current?.focus();
     }, 100);
-  };
-
-  // 继续讨论的函数
-  const continueDiscussion = async () => {
-    if (!discussionPaused && !discussionCompleted) return;
-    
-    setDiscussionPaused(false);
-    setDiscussionCompleted(false);
-    setIsLoading(true);
-    
-    // 创建新的 AbortController
-    abortControllerRef.current = new AbortController();
-    
-    // 获取当前消息历史并格式化
-    const formattedDiscussion = formatDiscussionContent(messages);
-    
-    // 创建格式化后的消息
-    const fastgptMessages: FastGPTMessage[] = [
-      {
-        role: 'user',
-        content: formattedDiscussion
-      }
-    ];
-    
-    // 开始继续讨论
-    await startDiscussionWithAgents(chatId || '', [], fastgptMessages);
   };
 
   const handleSend = async () => {
@@ -1298,12 +1499,30 @@ export default function Home() {
 
   // 处理聊天选择
   const handleChatSelect = async (chatId: string) => {
+    // 如果有正在进行的讨论，中止它
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // 重置加载状态和流式消息ID
+    setIsLoading(false);
+    setCurrentStreamingMessageId(null);
+    
     // 如果选择的是新对话框，则清空消息并设置临时ID
     if (chatId === "newchat") {
       setMessages([]);
       setChatId("newchat");
-      setCurrentStreamingMessageId(null);
       setInputValue("");
+      
+      // 重置讨论状态，确保新对话不受之前讨论的影响
+      updateCurrentDiscussionState({
+        isDiscussionMode: false,
+        discussionPaused: false,
+        discussionCompleted: false,
+        currentRound: 0
+      });
+      
       // 聚焦输入框
       setTimeout(() => {
         chatInputRef.current?.focus();
@@ -1366,10 +1585,27 @@ export default function Home() {
 
   // 新建对话
   const handleNewChat = () => {
+    // 如果有正在进行的讨论，中止它
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    // 重置加载状态和流式消息ID
+    setIsLoading(false);
+    setCurrentStreamingMessageId(null);
+    
     setMessages([]);
     setChatId("newchat"); // 使用固定的临时ID
-    setCurrentStreamingMessageId(null);
     setInputValue("");
+    
+    // 重置讨论状态，确保新对话不受之前讨论的影响
+    updateCurrentDiscussionState({
+      isDiscussionMode: false,
+      discussionPaused: false,
+      discussionCompleted: false,
+      currentRound: 0
+    });
     
     // 检查是否已存在新对话框，避免重复创建
     // 通过全局函数获取当前聊天历史并检查
@@ -1463,6 +1699,29 @@ export default function Home() {
     }
   };
   
+  // 处理群聊选择
+  const handleGroupSelect = (group: GroupChat) => {
+    setSelectedGroup(group);
+    setCurrentView('group');
+  };
+  
+  // 处理单个群组聊天
+  const handleSingleGroupChat = (group: GroupChat) => {
+    setSelectedGroup(group);
+    setCurrentView('singleGroup');
+  };
+  
+  // 处理返回聊天界面
+  const handleBackToChat = () => {
+    setCurrentView('chat');
+    setSelectedGroup(null);
+  };
+  
+  // 处理显示群聊详情
+  const handleShowGroupDetail = (group: GroupChat) => {
+    setSelectedGroup(group);
+  };
+  
   // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Escape" && showAgentList) {
@@ -1478,55 +1737,89 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
-      <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
-        <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} onAddAgent={handleAddAgent} />
-        
-        <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
-          <ChatHeader 
-        agents={agents} 
-        isDiscussionMode={isDiscussionMode}
-        onDiscussionModeChange={setIsDiscussionMode}
-        discussionRounds={discussionRounds}
-        onDiscussionRoundsChange={setDiscussionRounds}
-      />
-          <MessageList messages={messages} scrollAreaRef={scrollAreaRef} />
-          <SuggestionBubbles onSuggestionClick={handleSuggestionClick} />
-          <ChatInput
-            ref={chatInputRef}
-            inputValue={inputValue}
-            isLoading={isLoading}
-            isComposing={isComposing}
-            showAgentList={showAgentList}
-            filteredAgents={filteredAgents}
-            mentionStartIndex={mentionStartIndex}
-            isDiscussionMode={isDiscussionMode}
-            discussionPaused={discussionPaused}
-            discussionCompleted={discussionCompleted}
-            onPauseDiscussion={handlePauseDiscussion}
-            onResumeDiscussion={continueDiscussion}
-            onInputChange={handleInputChange}
-            onSend={handleSend}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
-            onSelectAgent={selectAgent}
-          />
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('应用程序错误:', error, errorInfo);
+        // 这里可以添加错误报告逻辑，如发送到错误追踪服务
+      }}
+    >
+      <div className="flex h-screen w-full items-center justify-center bg-zinc-50 dark:bg-zinc-950 font-sans">
+        <div className="flex w-full h-full overflow-hidden rounded-none bg-white dark:bg-zinc-900 shadow-2xl border-0 border-zinc-200 dark:border-zinc-800">
+          <AgentListErrorBoundary>
+            <DualSidebar agents={agents} onNewChat={handleNewChat} onChatSelect={handleChatSelect} onAgentSelect={handleAgentSelect} onAddAgent={handleAddAgent} onGroupSelect={handleGroupSelect} onStartSingleGroupChat={handleSingleGroupChat} />
+          </AgentListErrorBoundary>
+          
+          <ChatErrorBoundary>
+            {currentView === 'group' ? (
+              <GroupChatInterface
+                group={selectedGroup}
+                agents={agents}
+                onBack={handleBackToChat}
+                onShowGroupDetail={handleShowGroupDetail}
+                onShowGroupList={() => {}}
+              />
+            ) : currentView === 'singleGroup' && selectedGroup ? (
+              <SingleGroupChat
+                group={selectedGroup}
+                agents={agents}
+                onBack={handleBackToChat}
+                onShowGroupDetail={handleShowGroupDetail}
+              />
+            ) : (
+              <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
+                <ChatHeader 
+                  agents={agents} 
+                  isDiscussionMode={isDiscussionMode}
+                  onDiscussionModeChange={(enabled) => updateCurrentDiscussionState({ isDiscussionMode: enabled })}
+                  discussionRounds={discussionRounds}
+                  onDiscussionRoundsChange={(rounds) => updateCurrentDiscussionState({ discussionRounds: rounds })}
+                />
+                <MessageList messages={messages} scrollAreaRef={scrollAreaRef} agents={agents} />
+                <SuggestionBubbles onSuggestionClick={handleSuggestionClick} />
+                <ChatInputErrorBoundary>
+                  <ChatInput
+                    ref={chatInputRef}
+                    inputValue={inputValue}
+                    isLoading={isLoading}
+                    isComposing={isComposing}
+                    showAgentList={showAgentList}
+                    filteredAgents={filteredAgents}
+                    mentionStartIndex={mentionStartIndex}
+                    isDiscussionMode={isDiscussionMode}
+                    discussionPaused={discussionPaused}
+                    discussionCompleted={discussionCompleted}
+                    discussionWaitingForInput={discussionWaitingForInput}
+                    onPauseDiscussion={handlePauseDiscussion}
+                    onResumeDiscussion={handleResumeDiscussion}
+                    onInputChange={handleInputChange}
+                    onSend={handleSend}
+                    onKeyDown={handleKeyDown}
+                    onCompositionStart={() => setIsComposing(true)}
+                    onCompositionEnd={() => setIsComposing(false)}
+                    onSelectAgent={selectAgent}
+                  />
+                </ChatInputErrorBoundary>
+              </div>
+            )}
+          </ChatErrorBoundary>
         </div>
+        
+        {/* 智能体配置侧边栏 */}
+        <AgentConfigErrorBoundary>
+          <AgentConfigSidebar
+            isOpen={isConfigSidebarOpen}
+            agent={selectedAgent}
+            onClose={handleCloseConfigSidebar}
+            onSave={handleAgentConfigSave}
+            onRefreshAgents={loadAgentsFromDatabase}
+          />
+          <CreateAgentSidebar
+            isOpen={isCreateAgentSidebarOpen}
+            onClose={() => setIsCreateAgentSidebarOpen(false)}
+            onSave={handleCreateAgentSave}
+          />
+        </AgentConfigErrorBoundary>
       </div>
-      
-      {/* 智能体配置侧边栏 */}
-      <AgentConfigSidebar
-        isOpen={isConfigSidebarOpen}
-        agent={selectedAgent}
-        onClose={handleCloseConfigSidebar}
-        onSave={handleAgentConfigSave}
-      />
-      <CreateAgentSidebar
-        isOpen={isCreateAgentSidebarOpen}
-        onClose={() => setIsCreateAgentSidebarOpen(false)}
-        onSave={handleCreateAgentSave}
-      />
-    </div>
+    </ErrorBoundary>
   );
 }

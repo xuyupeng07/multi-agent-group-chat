@@ -13,6 +13,10 @@ if (mongoose.models.Message) {
   delete mongoose.models.Message;
 }
 
+if (mongoose.models.GroupChat) {
+  delete mongoose.models.GroupChat;
+}
+
 // 重新定义智能体模式
 const agentSchema = new mongoose.Schema({
   name: {
@@ -25,6 +29,10 @@ const agentSchema = new mongoose.Schema({
     required: true
   },
   introduction: {
+    type: String,
+    default: ''
+  },
+  avatar: {
     type: String,
     default: ''
   },
@@ -99,9 +107,43 @@ const chatSchema = new mongoose.Schema({
   messages: [messageSchema]
 });
 
-// 创建消息和聊天模型
+// 定义群聊模式
+const groupChatSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true
+  },
+  description: {
+    type: String,
+    default: ''
+  },
+  agentIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Agent',
+    required: true
+  }],
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  },
+  createdBy: {
+    type: String,
+    default: 'system'
+  },
+  avatar: {
+    type: String,
+    default: ''
+  }
+});
+
+// 创建消息、聊天和群聊模型
 const Message = mongoose.model('Message', messageSchema);
 const Chat = mongoose.model('Chat', chatSchema);
+const GroupChat = mongoose.model('GroupChat', groupChatSchema);
 
 // 连接MongoDB数据库
 async function connectMongoDB() {
@@ -113,7 +155,11 @@ async function connectMongoDB() {
     
     const connectionString = 'mongodb://root:57mbtz5p@dbconn.sealoshzh.site:38790/?directConnection=true';
     await mongoose.connect(connectionString, {
-      dbName: 'agent'
+      dbName: 'agent',
+      // 添加连接池配置以提高并发处理能力
+      maxPoolSize: 10, // 最大连接数
+      serverSelectionTimeoutMS: 5000, // 服务器选择超时
+      socketTimeoutMS: 45000, // Socket超时
     });
     console.log('MongoDB connected successfully');
     return true;
@@ -123,4 +169,4 @@ async function connectMongoDB() {
   }
 }
 
-export { connectMongoDB, Agent, Chat, Message };
+export { connectMongoDB, Agent, Chat, Message, GroupChat };

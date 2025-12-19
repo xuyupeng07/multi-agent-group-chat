@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { LeftSidebar } from "./LeftSidebar";
 import { RightSidebar } from "./RightSidebar";
-import { Agent } from "@/types/chat";
+import { GroupChatManager } from "./GroupChatManager";
+import { Agent, GroupChat } from "@/types/chat";
 
 interface ChatHistoryItem {
   id: string;
@@ -18,10 +19,12 @@ interface DualSidebarProps {
   onChatSelect?: (chatId: string) => void;
   onAgentSelect: (agent: Agent) => void;
   onAddAgent?: () => void;
+  onGroupSelect?: (group: GroupChat) => void;
+  onStartSingleGroupChat?: (group: GroupChat) => void;
 }
 
-export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, onAddAgent }: DualSidebarProps) {
-  const [activeView, setActiveView] = useState<'chats' | 'agents'>('chats');
+export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, onAddAgent, onGroupSelect, onStartSingleGroupChat }: DualSidebarProps) {
+  const [activeView, setActiveView] = useState<'chats' | 'agents' | 'groups'>('chats');
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
@@ -173,15 +176,19 @@ export function DualSidebar({ agents, onNewChat, onChatSelect, onAgentSelect, on
         onViewChange={setActiveView}
         onNewChat={onNewChat}
       />
-      <RightSidebar
-        activeView={activeView}
-        agents={agents}
-        chatHistory={chatHistory}
-        loading={loading}
-        onChatSelect={handleChatSelect}
-        onAgentSelect={onAgentSelect}
-        onAddAgent={onAddAgent}
-      />
+      {activeView === 'groups' ? (
+        <GroupChatManager onGroupSelect={onGroupSelect} onStartSingleGroupChat={onStartSingleGroupChat} />
+      ) : (
+        <RightSidebar
+          activeView={activeView}
+          agents={agents}
+          chatHistory={chatHistory}
+          loading={loading}
+          onChatSelect={handleChatSelect}
+          onAgentSelect={onAgentSelect}
+          onAddAgent={onAddAgent}
+        />
+      )}
     </aside>
   );
 }

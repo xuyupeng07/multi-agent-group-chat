@@ -1,5 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Message } from "@/types/chat";
+import { AgentAvatar } from "@/components/AgentAvatar";
+import { cn } from "@/lib/utils";
+import { Message, Agent } from "@/types/chat";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,6 +10,7 @@ import "highlight.js/styles/github-dark.css";
 
 interface MessageItemProps {
   message: Message;
+  agents?: Agent[];
 }
 
 const getInitials = (name: string) => {
@@ -82,7 +85,10 @@ const parseMessageContent = (content: string, isUserMessage: boolean) => {
   return parts;
 };
 
-export function MessageItem({ message }: MessageItemProps) {
+export function MessageItem({ message, agents = [] }: MessageItemProps) {
+  // 查找当前消息对应的智能体信息
+  const currentAgent = agents.find(agent => agent.name === message.agentName);
+  
   return (
     <div className={`flex gap-3 ${message.isUser ? "flex-row-reverse" : ""}`}>
       {/* 用户头像 */}
@@ -98,11 +104,18 @@ export function MessageItem({ message }: MessageItemProps) {
       
       {/* AI头像 */}
       {!message.isUser && (
-        <Avatar className="h-8 w-8 mt-1">
-          <AvatarFallback className={`${message.agentColor} text-white text-xs`}>
-            {getInitials(message.agentName)}
-          </AvatarFallback>
-        </Avatar>
+        <>
+          {currentAgent ? (
+            <AgentAvatar agent={currentAgent} size="sm" />
+          ) : (
+            // 调度中心或其他没有对应Agent的消息使用默认头像
+            <Avatar className="h-8 w-8 mt-1">
+              <AvatarFallback className="bg-gray-500 text-white">
+                {message.agentName === "调度中心" ? "调" : getInitials(message.agentName)}
+              </AvatarFallback>
+            </Avatar>
+          )}
+        </>
       )}
 
       <div className={`flex flex-col max-w-[70%] ${message.isUser ? "items-end" : "items-start"}`}>

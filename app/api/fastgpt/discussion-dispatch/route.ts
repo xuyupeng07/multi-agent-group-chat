@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 讨论模式调度中心API密钥
-const DISCUSSION_DISPATCH_API_KEY = 'fastgpt-lB4Ba0eLrMWPi9AA2G1YLLBay2wjRU7xnXwQuqfBDVWzEYPIrME27T3gJ';
+// 讨论模式调度中心API密钥 - 从环境变量中安全获取
+const DISCUSSION_DISPATCH_API_KEY = process.env.FASTGPT_DISPATCH_API_KEY || '';
 
 // FastGPT API 基础URL
 const FASTGPT_API_URL = 'https://cloud.fastgpt.io/api/v1/chat/completions';
 
 export async function POST(request: NextRequest) {
   try {
+    // 检查调度中心API密钥是否配置
+    if (!DISCUSSION_DISPATCH_API_KEY) {
+      return NextResponse.json(
+        { error: '调度中心API密钥未配置，请检查环境变量 FASTGPT_DISPATCH_API_KEY' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
-    const { chatId, messages } = body;
+    const { chatId, messages, groupId, discuss } = body;
 
     if (!chatId || !messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -23,10 +31,14 @@ export async function POST(request: NextRequest) {
       chatId,
       stream: false,
       detail: false,
+      variables: {
+        group_id: groupId || "",
+        discuss: discuss !== undefined ? discuss : true // 默认为true，表示开启讨论模式
+      },
       messages,
     };
 
-    console.log('Calling Discussion Dispatch Center API with chatId:', chatId);
+    console.log('Calling Discussion Dispatch Center API with chatId:', chatId, 'discuss:', discuss);
 
     // 调用讨论模式调度中心API
     const response = await fetch(FASTGPT_API_URL, {

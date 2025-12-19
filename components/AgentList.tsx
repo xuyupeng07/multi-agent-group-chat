@@ -1,4 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AgentAvatar } from "@/components/AgentAvatar";
+import { cn } from "@/lib/utils";
 import { Agent } from "@/types/chat";
 
 interface AgentListProps {
@@ -31,11 +33,7 @@ export function AgentList({ show, filteredAgents, onSelectAgent, selectedIndex }
               : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100"
           }`}
         >
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className={`${agent.color} text-white text-xs font-medium`}>
-              {getInitials(agent.name)}
-            </AvatarFallback>
-          </Avatar>
+          <AgentAvatar agent={agent} size="sm" />
           <div className="flex-1 min-w-0">
             <div className="font-medium truncate">{agent.name}</div>
             <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{agent.role}</div>

@@ -3,21 +3,24 @@
 import { useState, useEffect, useRef } from "react";
 import { Agent } from "@/types/chat";
 import { X, Save } from "lucide-react";
+import { AvatarUpload } from "./AvatarUpload";
 
 interface AgentConfigSidebarProps {
   isOpen: boolean;
   agent: Agent | null;
   onClose: () => void;
   onSave: (agent: Agent) => void;
+  onRefreshAgents?: () => void; // 添加刷新智能体列表的回调
 }
 
-export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConfigSidebarProps) {
+export function AgentConfigSidebar({ isOpen, agent, onClose, onSave, onRefreshAgents }: AgentConfigSidebarProps) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState<Partial<Agent>>({
     name: agent?.name || "",
     role: agent?.role || "",
     introduction: agent?.introduction || "",
+    avatar: agent?.avatar || "",
     apiKey: agent?.apiKey || "",
     status: agent?.status || "offline",
     color: agent?.color || "bg-blue-500"
@@ -38,12 +41,13 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
         apiKey: agent.apiKey || "",
         status: agent.status,
         color: agent.color,
-        introduction: agent.introduction || ""
+        introduction: agent.introduction || "",
+        avatar: agent.avatar || ""
       });
       // 如果agent有baseUrl，使用它；否则使用默认值
       setBaseUrl(agent.baseUrl || "https://cloud.fastgpt.io/");
     }
-  }, [agent]);
+  }, [agent, agent?.id]); // 添加agent.id作为依赖，确保切换智能体时总是重置表单
 
   // 监听点击事件，当点击侧边栏外部时关闭侧边栏
   useEffect(() => {
@@ -77,6 +81,24 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
   const handleSave = async () => {
     if (agent && formData.name && formData.role) {
       try {
+        // 如果头像有变化，先更新头像
+        if (formData.avatar !== agent.avatar) {
+          const avatarResponse = await fetch('/api/agents/update-avatar', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              agentId: agent.id,
+              avatar: formData.avatar
+            }),
+          });
+
+          if (!avatarResponse.ok) {
+            throw new Error('Failed to update avatar');
+          }
+        }
+        
         // 准备请求数据，确保所有字段都有值
         const requestData = {
           id: agent.id,
@@ -124,6 +146,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
           name: formData.name || agent.name,
           role: formData.role || agent.role,
           introduction: formData.introduction || "",
+          avatar: formData.avatar || agent.avatar,
           apiKey: formData.apiKey,
           status: formData.status as "online" | "busy" | "offline",
           color: formData.color || agent.color,
@@ -131,6 +154,11 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
         };
         
         onSave(updatedAgent);
+        
+        // 刷新智能体列表，确保所有组件都使用最新数据
+        if (onRefreshAgents) {
+          onRefreshAgents();
+        }
       } catch (error) {
         console.error('保存智能体配置时出错:', error);
         alert(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -166,6 +194,14 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave }: AgentConf
 
         {/* 配置表单 */}
         <div className="p-4 space-y-6">
+          {/* 头像上传 */}
+          <div className="flex justify-center">
+            <AvatarUpload 
+              currentAvatar={formData.avatar}
+              onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
+            />
+          </div>
+          
           {/* 基本信息 */}
           <div>
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">基本信息</h3>

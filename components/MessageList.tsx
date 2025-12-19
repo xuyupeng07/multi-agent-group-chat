@@ -1,14 +1,16 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Message } from "@/types/chat";
+import { Agent } from "@/types/chat";
 import { MessageItem } from "./MessageItem";
 import { RefObject } from "react";
 
 interface MessageListProps {
   messages: Message[];
   scrollAreaRef: RefObject<HTMLDivElement | null>;
+  agents?: Agent[];
 }
 
-export function MessageList({ messages, scrollAreaRef }: MessageListProps) {
+export function MessageList({ messages, scrollAreaRef, agents = [] }: MessageListProps) {
   return (
     <ScrollArea className="flex-1 px-6 py-6 overflow-y-auto" ref={scrollAreaRef}>
       <div className="space-y-6">
@@ -29,7 +31,7 @@ export function MessageList({ messages, scrollAreaRef }: MessageListProps) {
         ) : (
           <>
             {messages.map((message) => (
-              <MessageItem key={message.id} message={message} />
+              <MessageItem key={message.id} message={message} agents={agents} />
             ))}
           </>
         )}

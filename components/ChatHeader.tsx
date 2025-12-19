@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Phone, Video, MoreVertical, MessageCircle } from "lucide-react";
 import { Agent } from "@/types/chat";
@@ -16,30 +16,36 @@ interface ChatHeaderProps {
 
 export function ChatHeader({ agents, isDiscussionMode = false, onDiscussionModeChange, discussionRounds = 3, onDiscussionRoundsChange }: ChatHeaderProps) {
   const [onlineAgentsCount, setOnlineAgentsCount] = useState<number>(0);
+  const agentsLengthRef = useRef(agents.length);
 
   // 从数据库获取在线智能体数量
   useEffect(() => {
-    const fetchOnlineAgentsCount = async () => {
-      try {
-        const response = await fetch('/api/agents/online-count');
-        if (response.ok) {
-          const data = await response.json();
-          setOnlineAgentsCount(data.count);
-        } else {
-          console.error('Failed to fetch online agents count');
-          // 如果获取失败，使用传入的agents数组中状态为online的数量
+    // 只有当agents数组长度变化时才重新获取
+    if (agents.length !== agentsLengthRef.current) {
+      agentsLengthRef.current = agents.length;
+      
+      const fetchOnlineAgentsCount = async () => {
+        try {
+          const response = await fetch('/api/agents/online-count');
+          if (response.ok) {
+            const data = await response.json();
+            setOnlineAgentsCount(data.count);
+          } else {
+            console.error('Failed to fetch online agents count');
+            // 如果获取失败，使用传入的agents数组中状态为online的数量
+            const onlineCount = agents.filter(agent => agent.status === 'online').length;
+            setOnlineAgentsCount(onlineCount);
+          }
+        } catch (error) {
+          console.error('Error fetching online agents count:', error);
+          // 如果发生错误，使用传入的agents数组中状态为online的数量
           const onlineCount = agents.filter(agent => agent.status === 'online').length;
           setOnlineAgentsCount(onlineCount);
         }
-      } catch (error) {
-        console.error('Error fetching online agents count:', error);
-        // 如果发生错误，使用传入的agents数组中状态为online的数量
-        const onlineCount = agents.filter(agent => agent.status === 'online').length;
-        setOnlineAgentsCount(onlineCount);
-      }
-    };
+      };
 
-    fetchOnlineAgentsCount();
+      fetchOnlineAgentsCount();
+    }
   }, [agents]);
 
   return (

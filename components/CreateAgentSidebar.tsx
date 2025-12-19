@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Agent } from "@/types/chat";
 import { X, Save } from "lucide-react";
+import { AvatarUpload } from "./AvatarUpload";
 
 interface CreateAgentSidebarProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
     name: "",
     role: "",
     introduction: "",
+    avatar: "",
     apiKey: "",
     status: "online",
     color: "bg-blue-500"
@@ -34,6 +36,7 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
           name: formData.name,
           role: formData.role,
           introduction: formData.introduction || "",
+          avatar: formData.avatar || "",
           apiKey: formData.apiKey || "",
           status: formData.status || "online",
           color: formData.color || "bg-blue-500",
@@ -64,6 +67,7 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
           name: formData.name,
           role: formData.role,
           introduction: formData.introduction || "",
+          avatar: formData.avatar || "",
           apiKey: formData.apiKey,
           status: formData.status as "online" | "busy" | "offline",
           color: formData.color || "bg-blue-500",
@@ -77,6 +81,7 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
           name: "",
           role: "",
           introduction: "",
+          avatar: "",
           apiKey: "",
           status: "online",
           color: "bg-blue-500"
@@ -114,6 +119,14 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
 
         {/* 配置表单 */}
         <div className="p-4 space-y-6">
+          {/* 头像上传 */}
+          <div className="flex justify-center">
+            <AvatarUpload 
+              currentAvatar={formData.avatar}
+              onAvatarChange={(avatar) => setFormData({ ...formData, avatar })}
+            />
+          </div>
+          
           {/* 基本信息 */}
           <div>
             <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-3">基本信息</h3>

@@ -1,14 +1,15 @@
 "use client";
 
-import { MessageSquare, Bot, Search, Settings, User, Plus } from "lucide-react";
+import { MessageSquare, Bot, Users, Settings, User, Plus } from "lucide-react";
 
 interface LeftSidebarProps {
-  activeView: 'chats' | 'agents';
-  onViewChange: (view: 'chats' | 'agents') => void;
+  activeView: 'chats' | 'agents' | 'groups';
+  onViewChange: (view: 'chats' | 'agents' | 'groups') => void;
   onNewChat: () => void;
+  onNewGroup?: () => void;
 }
 
-export function LeftSidebar({ activeView, onViewChange, onNewChat }: LeftSidebarProps) {
+export function LeftSidebar({ activeView, onViewChange, onNewChat, onNewGroup }: LeftSidebarProps) {
   return (
     <div className="flex h-screen w-12 flex-col items-center space-y-8 border-r border-slate-300 bg-slate-50 py-8 dark:border-slate-700 dark:bg-slate-900 sm:w-16">
       {/* Logo */}
@@ -53,12 +54,17 @@ export function LeftSidebar({ activeView, onViewChange, onNewChat }: LeftSidebar
         <Bot className="h-6 w-6" />
       </button>
       
-      {/* Discover */}
+      {/* Group Chats */}
       <button
-        className="rounded-lg p-1.5 text-slate-500 transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800"
-        title="发现"
+        onClick={() => onViewChange('groups')}
+        className={`rounded-lg p-1.5 transition-colors duration-200 ${
+          activeView === 'groups' 
+            ? 'bg-blue-100 text-blue-600 dark:bg-slate-800 dark:text-blue-600' 
+            : 'text-slate-500 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800'
+        }`}
+        title="群聊"
       >
-        <Search className="h-6 w-6" />
+        <Users className="h-6 w-6" />
       </button>
       
       {/* User */}

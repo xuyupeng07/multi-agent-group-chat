@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { Search, MessageSquare, Bot, Plus } from "lucide-react";
 import { Agent } from "@/types/chat";
 
@@ -131,15 +132,7 @@ export function RightSidebar({ activeView, agents, chatHistory, loading = false,
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:hover:bg-slate-800"
                   data-agent-button
                 >
-                  <div className="relative">
-                    <div className={`h-10 w-10 rounded-full ${agent.color} flex items-center justify-center text-white font-medium`}>
-                      {agent.name.charAt(0).toUpperCase()}
-                    </div>
-                    <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${
-                      agent.status === 'online' ? 'bg-green-500' :
-                      agent.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'
-                    }`} />
-                  </div>
+                  <AgentAvatar agent={agent} showStatus={true} />
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">

@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Settings, LogOut, Plus, Search } from "lucide-react";
 import { Agent } from "@/types/chat";
 
@@ -69,16 +70,7 @@ export function Sidebar({ agents, onNewChat }: SidebarProps) {
                 key={agent.id}
                 className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 transition-colors text-left group"
               >
-                <div className="relative">
-                  <Avatar className="h-10 w-10 border-2 border-white dark:border-zinc-900">
-                    <AvatarFallback className={`${agent.color} text-white font-medium`}>
-                      {getInitials(agent.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white dark:border-zinc-900 ${agent.status === 'online' ? 'bg-green-500' :
-                      agent.status === 'busy' ? 'bg-yellow-500' : 'bg-red-500'
-                    }`} />
-                </div>
+                <AgentAvatar agent={agent} showStatus={true} />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm text-zinc-900 dark:text-zinc-100 truncate">
                     {agent.name}

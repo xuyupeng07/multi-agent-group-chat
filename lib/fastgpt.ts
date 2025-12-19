@@ -1,4 +1,6 @@
 // FastGPT API 服务
+import { withRetry, withTimeout } from './errorHandling';
+
 export interface FastGPTMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -69,7 +71,17 @@ export async function loadAgentConfigs() {
       `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/agents` : 
       '/api/agents';
     
-    const response = await fetch(agentsUrl);
+    // 使用重试和超时机制
+    const response = await withRetry(
+      () => withTimeout(
+        fetch(agentsUrl),
+        10000, // 10秒超时
+        new Error('加载智能体配置超时')
+      ),
+      3, // 最多重试3次
+      1000 // 初始延迟1秒
+    );
+    
     if (response.ok) {
       const agents = await response.json();
       AGENT_CONFIGS = agents.reduce((configs: Record<string, {
@@ -109,54 +121,82 @@ export async function callDispatchCenter(
   chatId: string,
   messages: FastGPTMessage[]
 ): Promise<DispatchCenterResponse> {
-  try {
-    console.log('Calling Dispatch Center API with chatId:', chatId);
-    
-    const response = await fetch('/api/fastgpt/dispatch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chatId,
-        messages,
+  console.log('Calling Dispatch Center API with chatId:', chatId);
+  
+  // 使用重试和超时机制
+  const response = await withRetry(
+    () => withTimeout(
+      fetch('/api/fastgpt/dispatch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chatId,
+          messages,
+        }),
       }),
-    });
+      15000, // 15秒超时
+      new Error('调度中心请求超时')
+    ),
+    2, // 最多重试2次
+    2000 // 初始延迟2秒
+  );
 
-    if (!response.ok) {
-      console.error('Dispatch Center API error response:', response.status, response.statusText);
-      throw new Error(`Dispatch Center API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const data: DispatchCenterResponse = await response.json();
-    console.log('Dispatch Center API response received:', data);
-    return data;
-  } catch (error) {
-    console.error('Failed to call Dispatch Center API:', error);
-    throw error;
+  if (!response.ok) {
+    console.error('Dispatch Center API error response:', response.status, response.statusText);
+    throw new Error(`Dispatch Center API error: ${response.status} ${response.statusText}`);
   }
+  
+  const data: DispatchCenterResponse = await response.json();
+  console.log('Dispatch Center API response received:', data);
+  return data;
 }
 
-// 调用讨论模式调度中心API - 使用不同的API密钥
+// 调用讨论模式调度中心API - 通过API路由调用
 export async function callDiscussionDispatchCenter(
   chatId: string,
   messages: FastGPTMessage[],
+  groupId?: string,
+  discuss: boolean = true, // 默认为true，表示开启讨论模式
   signal?: AbortSignal
 ): Promise<DispatchCenterResponse> {
   try {
-    console.log('Calling Discussion Dispatch Center API with chatId:', chatId);
+    console.log('Calling Discussion Dispatch Center API with chatId:', chatId, 'discuss:', discuss);
     
-    const response = await fetch('/api/fastgpt/discussion-dispatch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chatId,
-        messages,
-      }),
-      signal, // 传递 AbortSignal
-    });
+    // 准备讨论模式调度中心请求
+    const dispatchRequest = {
+      chatId,
+      messages,
+      groupId,
+      discuss
+    };
+    
+    console.log('Dispatch request payload:', JSON.stringify(dispatchRequest, null, 2));
+    
+    // 在服务器端和客户端使用不同的URL
+    const isServer = typeof window === 'undefined';
+    const apiUrl = isServer ? 
+      `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/fastgpt/discussion-dispatch` : 
+      '/api/fastgpt/discussion-dispatch';
+    
+    // 使用重试和超时机制
+    const response = await withRetry(
+      () => withTimeout(
+        fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(dispatchRequest),
+          signal, // 传递 AbortSignal
+        }),
+        15000, // 15秒超时
+        new Error('讨论调度中心请求超时')
+      ),
+      2, // 最多重试2次
+      2000 // 初始延迟2秒
+    );
 
     if (!response.ok) {
       console.error('Discussion Dispatch Center API error response:', response.status, response.statusText);

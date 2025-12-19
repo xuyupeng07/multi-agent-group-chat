@@ -14,6 +14,7 @@ interface ChatInputProps {
   isDiscussionMode?: boolean;
   discussionPaused?: boolean;
   discussionCompleted?: boolean;
+  discussionWaitingForInput?: boolean;
   onPauseDiscussion?: () => void;
   onResumeDiscussion?: () => void;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -37,6 +38,7 @@ export const ChatInput = forwardRef<{
   isDiscussionMode = false,
   discussionPaused = false,
   discussionCompleted = false,
+  discussionWaitingForInput = false,
   onPauseDiscussion,
   onResumeDiscussion,
   onInputChange,
@@ -44,7 +46,7 @@ export const ChatInput = forwardRef<{
   onKeyDown,
   onCompositionStart,
   onCompositionEnd,
-  onSelectAgent
+  onSelectAgent,
 }, ref) => {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -257,15 +259,21 @@ export const ChatInput = forwardRef<{
       {isDiscussionMode && (
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm text-zinc-600 dark:text-zinc-400">
-            讨论模式 {discussionCompleted ? "(已完成)" : discussionPaused ? "(已暂停)" : "(进行中)"}
+            讨论模式 {discussionCompleted && !discussionWaitingForInput ? "(进行中)" : discussionCompleted ? "(已完成)" : discussionPaused ? "(已暂停)" : "(进行中)"}
           </div>
           <Button
             variant="outline"
             size="sm"
             onClick={discussionPaused || discussionCompleted ? onResumeDiscussion : onPauseDiscussion}
+            disabled={discussionCompleted && !discussionWaitingForInput}
             className="flex items-center gap-2"
           >
-            {discussionPaused || discussionCompleted ? (
+            {discussionCompleted && !discussionWaitingForInput ? (
+              <>
+                <Pause className="h-4 w-4" />
+                讨论进行中
+              </>
+            ) : discussionPaused || discussionCompleted ? (
               <>
                 <Play className="h-4 w-4" />
                 继续讨论
@@ -286,7 +294,7 @@ export const ChatInput = forwardRef<{
             type="button"
             className={`absolute inset-y-0 left-0 flex items-center pl-3 transition-colors duration-200 ${isRecording ? 'text-red-600 animate-pulse' : 'text-slate-500 hover:text-blue-600'}`}
             onClick={handleVoiceInput}
-            disabled={isLoading}
+            disabled={isLoading && !discussionCompleted}
             title={isRecording ? '点击停止录音' : '点击开始语音输入'}
           >
             <svg
@@ -321,13 +329,13 @@ export const ChatInput = forwardRef<{
             className={`block w-full resize-none rounded-lg border border-gray-300 bg-white p-4 pl-10 pr-20 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-base transition-all duration-200 scrollbar-hide ${recognitionSuccess ? 'ring-2 ring-green-500 bg-green-50' : ''}`}
             placeholder="输入消息，使用@智能体名称来指定智能体..."
             rows={1}
-            disabled={isLoading}
+            disabled={isLoading && !discussionCompleted}
             required
           />
           <button
             type="submit"
             className="absolute bottom-2 right-2.5 flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 sm:text-base"
-            disabled={!inputValue.trim() || isComposing || isLoading}
+            disabled={!inputValue.trim() || isComposing || (isLoading && !discussionCompleted)}
           >
             <svg
               aria-hidden="true"
