@@ -8,7 +8,8 @@ import { ChatInput } from "./ChatInput";
 import { SuggestionBubbles } from "./SuggestionBubbles";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Button } from "./ui/button";
-import { Users, Plus, Settings, MessageSquare, MessageSquareOff, Phone, Video } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Users, Plus, Settings, MessageSquare, MessageSquareOff, Phone, Video, ChevronDown } from "lucide-react";
 import { GroupChatDetail } from "./GroupChatDetail";
 import { callFastGPT, FastGPTMessage, getAgentApiKey, callDiscussionDispatchCenter } from "@/lib/fastgpt";
 
@@ -39,7 +40,7 @@ export function GroupChatInterface({
   const [discussionPaused, setDiscussionPaused] = useState(false);
   const [discussionCompleted, setDiscussionCompleted] = useState(false);
   const [discussionWaitingForInput, setDiscussionWaitingForInput] = useState(false);
-  const [discussionRounds] = useState(3); // 默认讨论轮数
+  const [discussionRounds, setDiscussionRounds] = useState(3); // 默认讨论轮数
   const [currentRound, setCurrentRound] = useState(0);
   const [currentStreamingMessageId, setCurrentStreamingMessageId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -999,6 +1000,28 @@ export function GroupChatInterface({
           <MessageSquare className="h-4 w-4 mr-1.5" />
           {isDiscussionMode ? "讨论中" : "开启讨论"}
         </Button>
+
+        {isDiscussionMode && (
+          <div className="flex items-center gap-2 mr-2">
+            <span className="text-sm text-zinc-600">讨论轮数:</span>
+            <Select value={discussionRounds.toString()} onValueChange={(value: string) => setDiscussionRounds(parseInt(value))}>
+              <SelectTrigger className="w-16 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+                <SelectItem value="4">4</SelectItem>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="6">6</SelectItem>
+                <SelectItem value="7">7</SelectItem>
+                <SelectItem value="8">8</SelectItem>
+                <SelectItem value="9">9</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         <Button variant="ghost" size="icon" className="text-zinc-500">
           <Phone className="h-5 w-5" />
