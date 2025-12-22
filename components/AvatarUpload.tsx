@@ -82,7 +82,7 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, className = "" }: 
             <img 
               src={avatarPreview} 
               alt="头像预览" 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover object-center p-1"
             />
           ) : (
             <Camera className="w-8 h-8 text-gray-400" />

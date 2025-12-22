@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { cn } from "@/lib/utils";
 import { Message, Agent } from "@/types/chat";
@@ -110,6 +110,9 @@ export function MessageItem({ message, agents = [] }: MessageItemProps) {
           ) : (
             // 调度中心或其他没有对应Agent的消息使用默认头像
             <Avatar className="h-8 w-8 mt-1">
+              {message.agentName === "调度中心" ? (
+                <AvatarImage src="/调度中心.png" alt="调度中心" className="object-cover object-center" />
+              ) : null}
               <AvatarFallback className="bg-gray-500 text-white">
                 {message.agentName === "调度中心" ? "调" : getInitials(message.agentName)}
               </AvatarFallback>

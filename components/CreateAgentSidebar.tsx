@@ -101,9 +101,9 @@ export function CreateAgentSidebar({ isOpen, onClose, onSave }: CreateAgentSideb
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
+    <div className="fixed inset-0 z-50" onClick={onClose}>
       {/* 侧边栏 */}
-      <div className="absolute right-0 top-0 h-full w-80 overflow-y-auto bg-white dark:bg-zinc-900 shadow-xl pointer-events-auto">
+      <div className="absolute right-0 top-0 h-full w-80 overflow-y-auto bg-white dark:bg-zinc-900 shadow-xl pointer-events-auto" onClick={(e) => e.stopPropagation()}>
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-700">
           <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">

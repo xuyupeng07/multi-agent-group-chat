@@ -84,7 +84,7 @@ export function AgentAvatar({ agent, size = "md", showStatus = false, className 
         <img 
           src={agent.avatar} 
           alt={agent.name}
-          className={`w-full h-full object-cover ${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
+          className={`w-full h-full object-cover object-center p-1 ${imageLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-200`}
           onLoad={() => {
             console.log(`Image loaded successfully for ${agent.name}`);
             setImageLoaded(true);

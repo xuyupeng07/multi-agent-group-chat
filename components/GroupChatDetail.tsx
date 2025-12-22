@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { Users, Edit, Trash2, Plus, MessageSquare, Settings, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { GroupChat, Agent } from "@/types/chat";
 import { CreateGroupChat } from "./CreateGroupChat";
 
@@ -19,6 +21,11 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
   const [showAddAgentModal, setShowAddAgentModal] = useState(false);
   const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [isEditingAvatar, setIsEditingAvatar] = useState(false);
+  const [isEditingGroupInfo, setIsEditingGroupInfo] = useState(false);
+  const [tempAvatar, setTempAvatar] = useState("");
+  const [tempName, setTempName] = useState("");
+  const [tempDescription, setTempDescription] = useState("");
 
   // 获取可用的智能体列表
   const fetchAgents = async () => {
@@ -66,8 +73,105 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
   useEffect(() => {
     if (group) {
       fetchAgents();
+      setTempAvatar(group.avatar || "");
+      setTempName(group.name || "");
+      setTempDescription(group.description || "");
     }
   }, [group]);
+
+  // 更新群聊头像
+  const handleUpdateAvatar = async () => {
+    if (!group) return;
+    
+    try {
+      const response = await fetch('/api/groupchats/update-avatar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          groupId: group.id,
+          avatar: tempAvatar
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.message === '群聊头像更新成功') {
+        // 更新本地群聊数据
+        const updatedGroup = {
+          ...group,
+          avatar: tempAvatar
+        };
+        onUpdateGroup(updatedGroup);
+        setIsEditingAvatar(false);
+      } else {
+        console.error('更新群聊头像失败:', data.error);
+        alert('更新群聊头像失败: ' + data.error);
+      }
+    } catch (error) {
+      console.error('更新群聊头像失败:', error);
+      alert('更新群聊头像失败');
+    }
+  };
+
+  // 更新群信息
+  const handleUpdateGroupInfo = async () => {
+    if (!group) return;
+    
+    if (!tempName.trim()) {
+      alert('群聊名称不能为空');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`/api/groupchats/${group.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: tempName.trim(),
+          description: tempDescription.trim(),
+          avatar: tempAvatar
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // 更新本地群聊数据
+        const updatedGroup = {
+          ...group,
+          name: tempName.trim(),
+          description: tempDescription.trim(),
+          avatar: tempAvatar
+        };
+        onUpdateGroup(updatedGroup);
+        setIsEditingGroupInfo(false);
+      } else {
+        console.error('更新群信息失败:', data.error);
+        alert('更新群信息失败: ' + data.error);
+      }
+    } catch (error) {
+      console.error('更新群信息失败:', error);
+      alert('更新群信息失败');
+    }
+  };
+
+  // 取消头像编辑
+  const handleCancelAvatarEdit = () => {
+    setTempAvatar(group?.avatar || "");
+    setIsEditingAvatar(false);
+  };
+
+  // 取消群信息编辑
+  const handleCancelGroupInfoEdit = () => {
+    setTempAvatar(group?.avatar || "");
+    setTempName(group?.name || "");
+    setTempDescription(group?.description || "");
+    setIsEditingGroupInfo(false);
+  };
 
   // 删除群聊中的智能体
   const handleRemoveAgent = async (agentId: string) => {
@@ -163,6 +267,18 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
     }
   };
 
+  // 打开添加智能体侧边栏时关闭其他侧边栏
+  const handleOpenAddAgentModal = () => {
+    setIsEditingGroupInfo(false);
+    setShowAddAgentModal(true);
+  };
+
+  // 打开编辑群信息侧边栏时关闭其他侧边栏
+  const handleOpenEditGroupInfo = () => {
+    setShowAddAgentModal(false);
+    setIsEditingGroupInfo(true);
+  };
+
   // 删除群聊
   const handleDeleteGroup = async () => {
     if (!group) return;
@@ -204,59 +320,64 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
   }
 
   return (
-    <div className="h-screen w-52 flex flex-col bg-slate-50 dark:bg-slate-900 sm:w-60">
-      {/* 头部 */}
-      <div className="flex items-center justify-between px-5 py-8">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="h-8 w-8 p-0 text-slate-500 transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={group.avatar} alt={group.name} />
-              <AvatarFallback className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-                <Users className="h-4 w-4" />
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="text-lg font-medium text-slate-800 dark:text-slate-200">{group.name}</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {group.agentIds?.length || 0} 个智能体
-              </p>
-            </div>
-          </div>
+    <div className="h-screen w-52 flex flex-col bg-slate-50 dark:bg-slate-900 sm:w-60 border-r border-slate-200 dark:border-slate-700">
+      {/* 头部 - 紧凑布局 */}
+      <div className="flex items-center px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="h-8 w-8 p-0 text-slate-500 transition-colors duration-200 hover:bg-slate-200 focus:outline-none dark:text-slate-400 dark:hover:bg-slate-800"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="ml-2">
+          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">群聊详情</h3>
         </div>
       </div>
 
-      {/* 群聊描述 */}
+      {/* 群聊描述 - 如果有则显示 */}
       {group.description && (
-        <div className="px-5 pb-4">
-          <div className="text-sm text-slate-600 dark:text-slate-300">
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+          <div className="text-xs text-slate-600 dark:text-slate-400">
             {group.description}
           </div>
         </div>
       )}
 
-      {/* 操作按钮 */}
-      <div className="px-5 pb-4 flex gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowAddAgentModal(true)}
-          className="w-full rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors duration-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          <span className="text-xs">添加智能体</span>
-        </Button>
+      {/* 操作按钮 - 紧凑布局 */}
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenEditGroupInfo}
+            className="justify-start h-8 px-3 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors duration-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <Edit className="h-4 w-4 mr-2" />
+            <span className="text-xs">编辑群信息</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenAddAgentModal}
+            className="justify-start h-8 px-3 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors duration-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="text-xs">添加智能体</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* 智能体列表标题 */}
+      <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-700">
+        <h4 className="text-xs font-medium text-slate-500 dark:text-slate-400">
+          智能体列表 ({group.agentIds?.length || 0})
+        </h4>
       </div>
 
       {/* 智能体列表 */}
-      <div className="flex-1 overflow-y-auto mx-2 space-y-2 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1 scrollbar-hide">
         {group.agentIds && group.agentIds.length > 0 ? (
           group.agentIds.map((agentOrId: any, index: number) => {
             // 如果agentOrId已经是Agent对象（通过populate获取），直接使用
@@ -276,11 +397,11 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
             return (
               <div
                 key={`${agent.id}-${index}`}
-                className="relative group cursor-pointer rounded-lg px-3 py-2 text-left transition-colors duration-200 hover:bg-slate-200 dark:hover:bg-slate-800"
+                className="relative group cursor-pointer rounded-md px-2 py-1.5 text-left transition-colors duration-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <Avatar className="h-8 w-8 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <Avatar className="h-7 w-7 flex-shrink-0">
                     {agent.avatar && agent.avatar.trim() ? (
                       <AvatarImage src={agent.avatar} alt={agent.name} />
                     ) : null}
@@ -292,15 +413,12 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">
+                    <h3 className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
                       {agent.name}
                     </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {agent.role}
-                    </p>
-                    {agent.introduction && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-1">
-                        {agent.introduction}
+                    {agent.role && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {agent.role}
                       </p>
                     )}
                   </div>
@@ -308,7 +426,7 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
+                  className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex-shrink-0"
                   onClick={() => handleRemoveAgent(agent.id)}
                   title="移除智能体"
                 >
@@ -319,17 +437,18 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
             );
           })
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <Users className="h-12 w-12 text-slate-400 mb-2" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="flex flex-col items-center justify-center py-6 text-center">
+            <Users className="h-8 w-8 text-slate-400 mb-2" />
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               这个群聊还没有智能体
             </p>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowAddAgentModal(true)}
-              className="mt-2 text-blue-600 hover:text-blue-700"
+              onClick={handleOpenAddAgentModal}
+              className="mt-2 text-xs h-7 px-3 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors duration-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
+              <Plus className="h-3 w-3 mr-1" />
               添加智能体
             </Button>
           </div>
@@ -337,23 +456,26 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
       </div>
 
       {/* 删除群聊按钮 */}
-      <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700">
         <Button
           variant="ghost"
           size="sm"
           onClick={handleDeleteGroup}
-          className="w-full rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
+          className="w-full justify-start h-8 px-3 rounded-md text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-200"
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          <span className="text-sm">删除群聊</span>
+          <span className="text-xs">删除群聊</span>
         </Button>
       </div>
 
-      {/* 添加智能体右侧边栏 */}
+      {/* 添加智能体右侧边栏 - 带点击外部关闭功能 */}
       {showAddAgentModal && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
+        <div className="fixed inset-0 z-50" onClick={() => {
+          setShowAddAgentModal(false);
+          setSelectedAgentIds([]);
+        }}>
           {/* 右侧边栏 */}
-          <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto">
+          <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             {/* 头部 */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-2">
@@ -463,6 +585,89 @@ export function GroupChatDetail({ group, onBack, onUpdateGroup, onStartChat }: G
                   className="flex-1"
                 >
                   添加 {selectedAgentIds.length > 0 && `(${selectedAgentIds.length})`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑群信息右侧边栏 - 带点击外部关闭功能 */}
+      {isEditingGroupInfo && (
+        <div className="fixed inset-0 z-50" onClick={handleCancelGroupInfoEdit}>
+          {/* 右侧边栏 */}
+          <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+            {/* 头部 */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">编辑群信息</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelGroupInfoEdit}
+                className="h-8 w-8 p-0"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
+            </div>
+
+            {/* 内容 */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {/* 群聊头像 */}
+              <div className="flex justify-center">
+                <AvatarUpload 
+                  currentAvatar={tempAvatar} 
+                  onAvatarChange={setTempAvatar}
+                />
+              </div>
+
+              {/* 群聊名称 */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  群聊名称 <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  placeholder="输入群聊名称"
+                  className="w-full"
+                />
+              </div>
+
+              {/* 群聊描述 */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  群聊描述
+                </label>
+                <textarea
+                  value={tempDescription}
+                  onChange={(e) => setTempDescription(e.target.value)}
+                  placeholder="输入群聊描述（可选）"
+                  className="w-full min-h-[100px] px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* 底部操作栏 */}
+            <div className="border-t border-slate-200 dark:border-slate-700 p-4">
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleCancelGroupInfoEdit}
+                  className="flex-1"
+                >
+                  取消
+                </Button>
+                <Button
+                  onClick={handleUpdateGroupInfo}
+                  disabled={!tempName.trim()}
+                  className="flex-1"
+                >
+                  保存
                 </Button>
               </div>
             </div>

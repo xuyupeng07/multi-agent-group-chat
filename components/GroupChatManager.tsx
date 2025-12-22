@@ -38,6 +38,7 @@ export function GroupChatManager({ onGroupSelect, onStartSingleGroupChat }: Grou
     name: string;
     description: string;
     agentIds: string[];
+    avatar?: string;
   }) => {
     try {
       const response = await fetch('/api/groupchats', {

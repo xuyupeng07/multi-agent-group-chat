@@ -5,6 +5,7 @@ import { X, Users, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { Agent } from "@/types/chat";
 
 interface CreateGroupChatProps {
@@ -14,12 +15,14 @@ interface CreateGroupChatProps {
     name: string;
     description: string;
     agentIds: string[];
+    avatar?: string;
   }) => void;
 }
 
 export function CreateGroupChat({ isOpen, onClose, onCreateGroup }: CreateGroupChatProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,6 +69,7 @@ export function CreateGroupChat({ isOpen, onClose, onCreateGroup }: CreateGroupC
   const resetForm = () => {
     setName("");
     setDescription("");
+    setAvatar("");
     setSelectedAgentIds([]);
   };
 
@@ -101,7 +105,8 @@ export function CreateGroupChat({ isOpen, onClose, onCreateGroup }: CreateGroupC
     onCreateGroup({
       name: name.trim(),
       description: description.trim(),
-      agentIds: selectedAgentIds
+      agentIds: selectedAgentIds,
+      avatar: avatar
     });
 
     resetForm();
@@ -110,9 +115,9 @@ export function CreateGroupChat({ isOpen, onClose, onCreateGroup }: CreateGroupC
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none">
+    <div className="fixed inset-0 z-50" onClick={handleClose}>
       {/* 右侧边栏 */}
-      <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto">
+      <div className="absolute top-0 right-0 h-full w-80 sm:w-96 bg-white dark:bg-slate-800 shadow-2xl flex flex-col pointer-events-auto" onClick={(e) => e.stopPropagation()}>
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2">
@@ -131,6 +136,14 @@ export function CreateGroupChat({ isOpen, onClose, onCreateGroup }: CreateGroupC
 
         {/* 内容 */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* 群聊头像 */}
+          <div className="flex justify-center">
+            <AvatarUpload 
+              currentAvatar={avatar} 
+              onAvatarChange={setAvatar}
+            />
+          </div>
+
           {/* 群聊名称 */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">

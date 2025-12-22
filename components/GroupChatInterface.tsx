@@ -981,6 +981,14 @@ export function GroupChatInterface({
       {/* 群聊头部 */}
     <div className="h-16 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-6 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-10">
       <div className="flex items-center gap-3">
+        <Avatar className="h-10 w-10">
+          {group.avatar && group.avatar.trim() ? (
+            <AvatarImage src={group.avatar} alt={group.name} className="object-cover object-center p-1" />
+          ) : null}
+          <AvatarFallback className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+            <Users className="h-5 w-5" />
+          </AvatarFallback>
+        </Avatar>
         <div className="flex flex-col">
           <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">{group.name}</h2>
           <div className="flex items-center gap-1.5">

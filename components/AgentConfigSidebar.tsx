@@ -171,6 +171,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave, onRefreshAg
   return (
     <div 
       className={`fixed inset-0 z-50 ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}
+      onClick={isOpen ? onClose : undefined}
     >
       {/* 侧边栏 */}
       <div 
@@ -178,6 +179,7 @@ export function AgentConfigSidebar({ isOpen, agent, onClose, onSave, onRefreshAg
         className={`absolute right-0 top-0 h-full w-80 overflow-y-auto bg-white dark:bg-zinc-900 shadow-xl pointer-events-auto transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-700">
